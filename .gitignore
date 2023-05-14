@@ -2,4 +2,4 @@
 *.pyc
 test.py
 *.pth
-.csv
+*.csv
