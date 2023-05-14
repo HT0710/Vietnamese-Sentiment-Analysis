@@ -1,4 +1,4 @@
-from utils import train_step, test_step, save_model, build_vocabulary, encode_words, padding
+from utils import train_step, test_step, save_model, build_vocabulary, word2int, truncate_sequences, pad_sequences, overprint
 from torch.utils.data import DataLoader, random_split
 from models import RNN, LSTM, GRU
 from data import DataModule
@@ -19,14 +19,14 @@ NUM_WOKER = os.cpu_count()
 
 # Impact performance
 TRAIN_TEST_SIZE = (0.8, 0.2)
-SEQ_LENGTH = 256
-EMBEDDING_SIZE = 256
+SEQ_LENGTH = 500
+EMBEDDING_SIZE = 300
 HIDDEN_SIZE = 512
 NUM_LAYER = 2
 DROPOUT = 0.25
-BATCH_SIZE = 333
+BATCH_SIZE = 210
 LEARNING_RATE = 0.001
-EPOCHS = 10
+EPOCHS = 20
 
 # Load dataset
 dataset = pd.read_csv('datasets/IMDB_processed.csv')
@@ -36,13 +36,16 @@ data, label = dataset['text'].tolist(), dataset['label'].tolist()
 vocab = build_vocabulary(data)
 
 # Encode words
-data_encoded = encode_words(data, vocab)
+encoded = word2int(data, vocab)
 
-# padding sequences
-features = padding(data=data_encoded, pad_id=vocab['<PAD>'], seq_length=SEQ_LENGTH)
+# Truncate sequences
+truncated = truncate_sequences(encoded, seq_length=SEQ_LENGTH)
+
+# Padding sequences
+padded = pad_sequences(truncated)
 
 # Create data module
-dataset = DataModule(features, label)
+dataset = DataModule(padded, label)
 
 # Train, test split
 train_data, test_data = random_split(dataset, TRAIN_TEST_SIZE)
@@ -64,8 +67,9 @@ model = LSTM(
 # Loss, optimizer and learning rate scheduler
 criterion = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=2)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=4)
 
+# Training loop
 for epoch in range(EPOCHS):
     print(f"Epoch: {epoch+1} | Lr: {optimizer.param_groups[0]['lr']}")
 
@@ -77,9 +81,9 @@ for epoch in range(EPOCHS):
         model=model, dataloader=test_loader, criterion=criterion, device=DEVICE
     )
 
-    scheduler.step(test_loss)
+    # scheduler.step(test_loss)
 
     print(f"  |- Loss: {train_loss:.4f}  Acc: {train_acc:.4f} | Test_loss: {test_loss:.4f}  Test_acc: {test_acc:.4f}")
 
-    if (epoch+1) % 1 == 0:
+    if (epoch+1) % 1 == 0 and test_acc >= 0.8:
         save_model(model=model, target_dir="checkpoints", model_name=f"E{epoch+1}_L{test_loss:.4f}_A{test_acc:.2f}.pth")

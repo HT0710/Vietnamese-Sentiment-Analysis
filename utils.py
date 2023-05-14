@@ -1,40 +1,37 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
+from torchtext.functional import truncate, pad_sequence
 from torchmetrics.functional import accuracy
+from torch.utils.data import DataLoader
 from collections import Counter
+import torch.optim as optim
 from pathlib import Path
-from tqdm import tqdm
-import numpy as np
+import torch.nn as nn
+import os, torch
 
 
-
-def build_vocabulary(data: list):
+def build_vocabulary(data: list[list]):
+    overprint("Building vocabulary...", replaced=True)
     words = ' '.join(data).split(' ')                       # Join all the text data and split it into individual words
     counter = Counter(words)                                # Count the occurrences of each word
     vocab = sorted(counter, key=counter.get, reverse=True)  # Sort the words in descending order of frequency
-    int2word = dict(enumerate(vocab, 1))                    # Create a mapping from index to word (int to word)
-    int2word[0] = '<PAD>'                                   # Add a special token for padding at index 0
-    word2int = {word: id for id, word in int2word.items()}  # Create a mapping from word to index (word to int)
-    return word2int
+    int2word = dict(enumerate(vocab, 0))                    # Create a mapping from index to word (int to word)
+    vocab = {word: id for id, word in int2word.items()}     # Create a mapping from word to index (word to int)
+    return vocab
 
 
-def encode_words(data: list, vocab: dict):
-    encoded = []
-    for seq in tqdm(data, 'Encode'):
-        seq_idx = []
-        for word in seq.split():
-            seq_idx.append(vocab[word])
-        encoded.append(seq_idx)
-    return encoded
+def word2int(data: list[list], vocab: dict):
+    overprint("Converting word2int...", replaced=True)
+    return [[vocab[word] for word in seq.split()] for seq in data]
 
 
-def padding(data, pad_id, seq_length=128):
-    features = np.full((len(data), seq_length), pad_id, dtype=int)
-    for i, row in enumerate(data):
-        features[i, :len(row)] = np.array(row)[:seq_length]
-    return features
+def truncate_sequences(data: list[list], seq_length=128):
+    overprint("Truncating...", replaced=True)
+    return truncate(data, seq_length)
+
+
+def pad_sequences(data: list[list]):
+    overprint("Padding...", replaced=True)
+    to_tensor = [torch.as_tensor(seq) for seq in data]
+    return pad_sequence(to_tensor, batch_first=True)
 
 
 def train_step(
@@ -112,12 +109,18 @@ def test_step(
 def save_model(model: nn.Module, target_dir: str, model_name: str):
     """Save model"""
     
-    target_dir_path = Path(target_dir)
-    target_dir_path.mkdir(parents=True, exist_ok=True)
+    target_path = Path(target_dir) / model._get_name()
+    target_path.mkdir(parents=True, exist_ok=True)
 
     # Create model save path
     assert model_name.endswith(".pth") or model_name.endswith(".pt"), "model_name should end with '.pt' or '.pth'"
-    model_save_path = target_dir_path / model_name
+    model_save_path = target_path / model_name
 
     # Save the model state_dict()
     torch.save(obj=model.state_dict(), f=model_save_path)
+
+
+def overprint(string: str, replaced: bool=True):
+    start = f"{' '*os.get_terminal_size()[0]}\r{string}"
+    end = '\r' if replaced else '\n'
+    return print(start, end=end)

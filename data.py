@@ -21,7 +21,7 @@ class DataModule(Dataset):
         text = self.texts[index]
         label = self.labels[index]
 
-        text = torch.as_tensor(text, dtype=torch.float32)
+        # text = torch.as_tensor(text, dtype=torch.float32)
         # label = torch.as_tensor(label, dtype=torch.float32)
 
         return text, label
@@ -29,9 +29,9 @@ class DataModule(Dataset):
 
 class Cleanup():
     def __call__(self, text: str):
-        return self.pipeline(text)
+        return self.auto(text)
 
-    def pipeline(self, text: str):
+    def auto(self, text: str):
         out = self.remove_link(text)
         out = self.remove_html(out)
         out = self.remove_special(out)
@@ -44,10 +44,10 @@ class Cleanup():
     def remove_link(self, text: str):
         pattern = r'https?://\S+|www\.\S+'
         return re.sub(pattern, ' ', text)
-    
+
     def remove_html(self, text: str):
         return re.sub(r'<[^>]+>', ' ', text)
-    
+
     def remove_special(self, text: str):
         return re.sub(r'[^a-zA-Z0-9\s]', ' ', text)
 
@@ -56,25 +56,25 @@ class Cleanup():
 
     def remove_non_ascii(self, text: str):
         return re.sub(r'[^\x00-\x7f]', ' ', text)
-    
+
     def remove_emoji(self, text: str):
         emojis = re.compile(
             '['
-            u'\U0001F600-\U0001F64F'  # emoticons
-            u'\U0001F300-\U0001F5FF'  # symbols & pictographs
-            u'\U0001F680-\U0001F6FF'  # transport & map symbols
-            u'\U0001F1E0-\U0001F1FF'  # flags (iOS)
+            u'\U0001F600-\U0001F64F'
+            u'\U0001F300-\U0001F5FF'
+            u'\U0001F680-\U0001F6FF'
+            u'\U0001F1E0-\U0001F1FF'
             u'\U00002702-\U000027B0'
             u'\U000024C2-\U0001F251'
             ']+',
             flags=re.UNICODE
         )
         return emojis.sub(' ', text)
-    
-    # Heeelloo worlddddd -> hello world
+
+    # heeelloo worlddddd -> hello world
     def remove_repeated(self, text: str):
         return re.sub(r'(.)\1+', r'\1\1', text)
-    
+
 
 class Preprocess():
     def __init__(self, stem: bool=False, lemma: bool=False):
@@ -87,9 +87,9 @@ class Preprocess():
         self.stopwords = set(stopwords.words('english'))
     
     def __call__(self, text):
-        return self.pipeline(text)
+        return self.auto(text)
     
-    def pipeline(self, text: str):
+    def auto(self, text: str):
         tokens = self.tokenize(text)
         out = self.remove_stopwords(tokens)
         out = self.stemming(out)
