@@ -11,7 +11,7 @@ class LitModel(LightningModule):
 
     def __init__(self, model: nn.Module, lr: float=1e-3, save_hparams=None):
         super().__init__()
-        self.save_hyperparameters(ignore=['model'], logger=False)
+        self.save_hyperparameters('save_hparams')
         self.model = model
         self.learning_rate = lr
         self.log_conf = {
