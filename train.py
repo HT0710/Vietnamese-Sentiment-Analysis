@@ -2,44 +2,30 @@ import os
 from argparse import ArgumentParser
 import yaml
 
-from models import RNN, LSTM, GRU
-from model import LitModel
+from models.GRU import GRU
 from data import DataPreprocessing, IMDBDataModule
 
-import torch
 from lightning.pytorch import Trainer, seed_everything
 
 
-def main(args):
+def main(config):
     # Set seed
     seed_everything(seed=42, workers=True)
 
     # Preprocessing
-    config['preprocess']['vocab'] = None  # overwrite if use custom vocab
+    config['preprocess']['vocab'] = None  # change if use custom vocab
     preprocesser = DataPreprocessing(**config["preprocess"])
 
     # Dataset
-    config['data'].update({
-        'batch_size': args.batch,
-        'num_workers': os.cpu_count(),
-    })
+    config['data']['num_workers'] = os.cpu_count()
     dataset = IMDBDataModule(preprocessing=preprocesser, **config['data'])
 
     # Model
     config['model']['vocab_size'] = dataset.vocab_size
-    
-    net = GRU(**config['model'])
-    compile = torch.compile(net)
+    model = GRU(**config['model'], save_hparams=config)
 
-    config['model']['name'] = net._get_name()
-
-    # Lightning
-    lr = config['trainer']['learning_rate'] = args.learning_rate
-    model = LitModel(model=compile, lr=lr, save_hparams=config)
-
-    # Train
-    epochs = config['trainer']['epochs'] = args.epoch
-    trainer = Trainer(max_epochs=epochs)
+    # Trainer
+    trainer = Trainer(max_epochs=config['trainer']['num_epochs'])
 
     trainer.fit(model, dataset)
 
@@ -47,12 +33,20 @@ def main(args):
 
 
 if __name__=="__main__":
-    with open('config.yaml', 'r') as file:
-        config = yaml.full_load(file)
     parser = ArgumentParser()
-    parser.add_argument("-e", "--epoch", type=int, default = config['trainer']['epochs'])
-    parser.add_argument("-b", "--batch", type=int, default = config['data']['batch_size'])
-    parser.add_argument("-lr", "--learning_rate", type=float, default = config['trainer']['learning_rate'])
+    parser.add_argument("-e", "--epoch", type=int, default=None)
+    parser.add_argument("-b", "--batch", type=int, default=None)
+    parser.add_argument("-lr", "--learning_rate", type=float, default=None)
     args = parser.parse_args()
 
-    main(args)
+    with open('config.yaml', 'r') as file:
+        config = yaml.full_load(file)
+
+    if args.epoch is not None:
+        config['trainer']['num_epochs'] = args.epoch
+    if args.batch is not None:
+        config['data']['batch_size'] = args.batch
+    if args.learning_rate is not None:
+        config['trainer']['learning_rate'] = args.learning_rate
+
+    main(config)
