@@ -2,7 +2,7 @@ import os
 from argparse import ArgumentParser
 import yaml
 
-from models.GRU import GRU
+from models import GRU
 from data import DataPreprocessing, IMDBDataModule
 
 from lightning.pytorch import Trainer, seed_everything
