@@ -12,6 +12,7 @@ import nltk
 from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
 import pandas as pd
+from rich import print
 
 
 class DataPreparation():
@@ -120,14 +121,15 @@ class DataPreprocessing():
 
     def auto(self, corpus: list[str]):
         """Auto pass through all step"""
-        print("Building vocabulary...", end='\r')
+        print("[bold]Preprocessing:[/] Building vocabulary...", end='\r')
         vocab = self.build_vocabulary(corpus, **self.vocab_conf) if not self.vocab else self.vocab
-        print("Converting word2int...", end='\r')
+        print("[bold]Preprocessing:[/] Converting word2int...", end='\r')
         encoded = self.word2int(corpus, vocab)
-        print("Truncating...         ", end='\r')
+        print("[bold]Preprocessing:[/] Truncating...         ", end='\r')
         truncated = self.truncate_sequences(encoded, seq_length=self.seq_length)
-        print("Padding...            ", end='\r')
+        print("[bold]Preprocessing:[/] Padding...            ", end='\r')
         padded = self.pad_sequences(truncated)
+        print("[bold]Preprocessing:[/] Done      ")
         return padded
 
     def build_vocabulary(self, corpus: list[str], min_freq: int|float=1, max_freq: int|float=1.):
@@ -173,10 +175,9 @@ class DataModule(Dataset):
     def __getitem__(self, idx):
         text = self.corpus[idx]
         label = self.labels[idx]
-        label = torch.as_tensor(
-            label, dtype=torch.float32
-        ).unsqueeze(0)
-        return text, label
+        text_tensor = torch.as_tensor(text, dtype=torch.long)
+        label_tensor = torch.as_tensor(label, dtype=torch.float).unsqueeze(0)
+        return text_tensor, label_tensor
 
 
 class IMDBDataModule(LightningDataModule):
