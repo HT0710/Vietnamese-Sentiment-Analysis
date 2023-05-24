@@ -1,0 +1,27 @@
+preprocess:
+  vocab: null
+  seq_length: 400
+  min_freq: 2
+  max_freq: 0.9
+
+data:
+  data_path: datasets/IMDB.csv
+  download: false
+  train_val_test_split: !!python/tuple [0.75,  0.15, 0.1]
+  batch_size: 300
+  num_workers: 0
+  pin_memory: true
+
+model:
+  vocab_size: null
+  output_size: 1
+  hidden_size: 512
+  embedding_size: 300
+  n_layers: 2
+  dropout: 0.25
+  batch_first: true
+  bidirectional: true
+
+trainer:
+  learning_rate: 0.001
+  num_epochs: 10

@@ -3,3 +3,5 @@
 test.py
 *.pth
 *.csv
+TODO.md
+lightning_logs

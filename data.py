@@ -1,33 +1,38 @@
+import os, re
+import requests
+from typing import Tuple, Optional, Any
+from collections import Counter
+
+import torch
+from torch.utils.data import Dataset, DataLoader, random_split
+from torchtext.functional import truncate, pad_sequence
+from lightning.pytorch import LightningDataModule
+
+import nltk
 from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
-from multiprocessing import Pool
-from torch.utils.data import Dataset
-from tqdm import tqdm
 import pandas as pd
-import os, re
-import torch
-import nltk
+from rich import print
 
 
-class DataModule(Dataset):
-    def __init__(self, texts, labels):
-        self.texts = texts
-        self.labels = labels
+class DataPreparation():
+    """Data Preparation"""
 
-    def __len__(self):
-        return len(self.texts)
+    def __init__(self, stem: bool=False, lemma: bool=False):
+        self.stemmer = PorterStemmer() if stem else None
+        self.lemmatizer = WordNetLemmatizer() if lemma else None
+        try:
+            stopwords.words('english')
+        except:
+            self.setup()
+        self.stopwords = set(stopwords.words('english'))
 
-    def __getitem__(self, index):
-        text = self.texts[index]
-        label = self.labels[index]
+    def setup(self):
+        print("Download required packages...")
+        nltk.download('stopwords')  # stopwords
+        nltk.download('punkt')      # tokenize
+        nltk.download('wordnet')    # stem & lemma
 
-        # text = torch.as_tensor(text, dtype=torch.float32)
-        # label = torch.as_tensor(label, dtype=torch.float32)
-
-        return text, label
-
-
-class Cleanup():
     def __call__(self, text: str):
         return self.auto(text)
 
@@ -39,7 +44,11 @@ class Cleanup():
         out = self.remove_non_ascii(out)
         out = self.remove_emoji(out)
         out = self.remove_repeated(out)
-        return out
+        out = self.tokenize(out)
+        out = self.remove_stopwords(out)
+        out = self.stemming(out)
+        out = self.lemmatization(out)
+        return ' '.join(out)
 
     def remove_link(self, text: str):
         pattern = r'https?://\S+|www\.\S+'
@@ -75,69 +84,177 @@ class Cleanup():
     def remove_repeated(self, text: str):
         return re.sub(r'(.)\1+', r'\1\1', text)
 
-
-class Preprocess():
-    def __init__(self, stem: bool=False, lemma: bool=False):
-        self.stemmer = PorterStemmer() if stem else None
-        self.lemmatizer = WordNetLemmatizer() if lemma else None
-        try:
-            stopwords.words('english')
-        except:
-            self.setup()
-        self.stopwords = set(stopwords.words('english'))
-    
-    def __call__(self, text):
-        return self.auto(text)
-    
-    def auto(self, text: str):
-        tokens = self.tokenize(text)
-        out = self.remove_stopwords(tokens)
-        out = self.stemming(out)
-        out = self.lemmatization(out)
-        return ' '.join(out)
-    
-    def setup(self):
-        print("Download required packages...")
-        nltk.download('stopwords')  # stopwords
-        nltk.download('punkt')      # tokenize
-        nltk.download('wordnet')    # stem & lemma
-    
     def tokenize(self, text: str):
         return nltk.word_tokenize(text)
 
     def remove_stopwords(self, tokens: list):
         return [word for word in tokens if word not in self.stopwords]
-    
+
     def stemming(self, tokens: list):
-        if not self.stemmer:
-            return tokens
-        return [self.stemmer.stem(word) for word in tokens]
-    
+        return [self.stemmer.stem(word) for word in tokens] if self.stemmer else tokens
+
     def lemmatization(self, tokens: list):
-        if not self.lemmatizer:
-            return tokens
-        return [self.lemmatizer.lemmatize(word) for word in tokens]
+        return [self.lemmatizer.lemmatize(word) for word in tokens] if self.lemmatizer else tokens
 
 
-if __name__=='__main__':
-    # Dataset
-    dataset = pd.read_csv('datasets/IMDB.csv')
-    data, label= dataset['review'], dataset['sentiment']
+class DataPreprocessing():
+    """Data Preprocessing"""
 
-    # Define
-    cleaner = Cleanup()
-    preprocessser = Preprocess(stem=True, lemma=True)
+    def __init__(
+            self,
+            vocab: list = None,
+            seq_length: int = 128,
+            min_freq: int|float = 1,
+            max_freq: int|float = 1.,
+        ):
+        """Data preprocessing"""
+        self.vocab = vocab
+        self.seq_length = seq_length
+        self.vocab_conf = {
+            'min_freq': min_freq,
+            'max_freq': max_freq,
+        }
 
-    # Normal
-    # tqdm.pandas()
-    # data = data.progress_apply(cleaner)
-    # data = data.progress_apply(preprocessser)
+    def __call__(self, texts: list[str]):
+        """Call class directly"""
+        return self.auto(texts)
 
-    # Multiprocessing (80% faster)
-    num_cpu = os.cpu_count()
-    with Pool(num_cpu) as pool:
-        data = pool.map(cleaner, data)
-        data = pool.map(preprocessser, data)
+    def auto(self, corpus: list[str]):
+        """Auto pass through all step"""
+        print("[bold]Preprocessing:[/] Building vocabulary...", end='\r')
+        vocab = self.build_vocabulary(corpus, **self.vocab_conf) if not self.vocab else self.vocab
+        print("[bold]Preprocessing:[/] Converting word2int...", end='\r')
+        encoded = self.word2int(corpus, vocab)
+        print("[bold]Preprocessing:[/] Truncating...         ", end='\r')
+        truncated = self.truncate_sequences(encoded, seq_length=self.seq_length)
+        print("[bold]Preprocessing:[/] Padding...            ", end='\r')
+        padded = self.pad_sequences(truncated)
+        print("[bold]Preprocessing:[/] Done      ")
+        return padded
 
-    print(data[:1])
+    def build_vocabulary(self, corpus: list[str], min_freq: int|float=1, max_freq: int|float=1.):
+        """Build vocabulary
+        - Can be limited with min frequency and max frequence
+        - If `int`: number of the token
+        - If `float`: percent of the token
+        """
+        tokenized = ' '.join(corpus).split(' ')
+        min_freq = int(min_freq * len(tokenized)) if isinstance(min_freq, float) else min_freq
+        max_freq = int(max_freq * len(tokenized)) if isinstance(max_freq, float) else max_freq
+        counter = Counter(tokenized)
+        token_list = ['<pad>', '<unk>']
+        token_list.extend([token for token in counter if (min_freq <= counter[token] <= max_freq)])
+        self.vocab = {token: idx for idx, token in enumerate(token_list)}
+        return self.vocab
 
+    def word2int(self, corpus: list[str], vocab: dict):
+        """Convert words to integer base on vocab"""
+        encoder = lambda token: vocab[token] if token in vocab else self.vocab['<unk>']
+        return [[encoder(token) for token in seq.split()] for seq in corpus]
+
+    def truncate_sequences(self, corpus: list[str], seq_length=128):
+        """Truncate the sequences"""
+        return truncate(corpus, seq_length)
+
+    def pad_sequences(self, corpus: list[str]):
+        """Padding all sequences with the length equal to the longest sequence"""
+        to_tensor = [torch.as_tensor(seq) for seq in corpus]
+        return pad_sequence(to_tensor, batch_first=True)
+
+
+class DataModule(Dataset):
+    """Pytorch Data Module"""
+
+    def __init__(self, corpus, labels):
+        self.corpus = corpus
+        self.labels = labels
+
+    def __len__(self):
+        return len(self.corpus)
+
+    def __getitem__(self, idx):
+        text = self.corpus[idx]
+        label = self.labels[idx]
+        text_tensor = torch.as_tensor(text, dtype=torch.long)
+        label_tensor = torch.as_tensor(label, dtype=torch.float).unsqueeze(0)
+        return text_tensor, label_tensor
+
+
+class IMDBDataModule(LightningDataModule):
+    """IMDB Lightning Data Module"""
+
+    def __init__(
+            self,
+            data_path: str = 'datasets/IMDB.csv',
+            download: bool = True,
+            preprocessing: Any = DataPreprocessing(),
+            train_val_test_split: Tuple = (0.75, 0.1, 0.15),
+            batch_size: int = 32,
+            num_workers: int = 0,
+            pin_memory: bool = False,
+    ):
+        super().__init__()
+        self.save_hyperparameters(logger=False)
+        self.data_train: Optional[Dataset] = None
+        self.data_val: Optional[Dataset] = None
+        self.data_test: Optional[Dataset] = None
+        self.dl_conf = {
+            "batch_size": batch_size,
+            "num_workers": num_workers,
+            "pin_memory": pin_memory,
+        }
+
+    @property
+    def num_classes(self):
+        return 2
+
+    @property
+    def vocab_size(self):
+        preprocesser = self.hparams.preprocessing
+        if not preprocesser.vocab:
+            corpus = pd.read_csv(self.hparams.data_path)['text'].tolist()
+            vocab = preprocesser.build_vocabulary(corpus, **preprocesser.vocab_conf)
+        else:
+            vocab = preprocesser.vocab
+        return len(vocab)
+
+    # Download the dataset
+    def _download_data(self):
+        data_path = 'datasets/IMDB.csv'
+        url = 'https://raw.githubusercontent.com/HT0710/Sentiment-Analysis/data/IMDB_processed.csv'
+        response = requests.get(url)
+        if response.status_code != 200:
+            print("Error occurred while downloading the file."); exit()
+        else:
+            print(f"Start download into '{data_path}'")
+            os.mkdir('datasets') if not os.path.exists('datasets') else None
+            with open(data_path, "wb") as file:
+                file.write(response.content)
+            print("File downloaded successfully.")
+            return data_path
+
+    def prepare_data(self):
+        if not os.path.exists(self.hparams.data_path):
+            print("Dataset not found!")
+            self.hparams.data_path = self._download_data() if self.hparams.download else exit()
+        dataset = pd.read_csv(self.hparams.data_path)
+        self.labels = dataset['label'].tolist()
+        raw_corpus = dataset['text'].tolist()
+        self.corpus = self.hparams.preprocessing(raw_corpus)
+
+    def setup(self, stage: str):
+        if not self.data_train and not self.data_val and not self.data_test:
+            dataset = DataModule(self.corpus, self.labels)
+            self.data_train, self.data_val, self.data_test = random_split(
+                dataset=dataset,
+                lengths=self.hparams.train_val_test_split,
+            )
+
+    def train_dataloader(self):
+        return DataLoader(dataset=self.data_train, **self.dl_conf, shuffle=True)
+
+    def val_dataloader(self):
+        return DataLoader(dataset=self.data_val, **self.dl_conf, shuffle=False)
+
+    def test_dataloader(self):
+        return DataLoader(dataset=self.data_test, **self.dl_conf, shuffle=False)
