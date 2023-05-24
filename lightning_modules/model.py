@@ -1,5 +1,5 @@
 from torchmetrics.functional import accuracy, f1_score
-from lightning.pytorch import LightningModule
+from lightning.pytorch import LightningModule, Trainer
 
 
 class LitModel(LightningModule):
@@ -8,16 +8,14 @@ class LitModel(LightningModule):
     def __init__(self):
         super().__init__()
         self.log_conf = {
-            "on_step": False,
-            "on_epoch": True,
-            "logger": True,
+            "on_step": False, "on_epoch": True, "prog_bar": False, "logger": True
         }
-    
+
     def criterion(self, y_hat, y):
-        raise Exception("Overwrite this to return a loss function")
-    
+        raise Exception("You need to overwrite 'criterion' function")
+
     def configure_optimizers(self):
-        raise Exception("Overwrite this to return an optimizer")
+        raise Exception("You need to overwrite 'configure_optimizers' function")
 
     def training_step(self, batch, batch_idx):
         X, y = batch
@@ -25,9 +23,9 @@ class LitModel(LightningModule):
         loss = self.criterion(y_hat, y)
         acc = accuracy(y_hat, y, task='binary')
         f1 = f1_score(y_hat, y, task='binary')
-        self.log("train/loss", loss, prog_bar=True, **self.log_conf)
         self.log_dict(
-            {"train/accuracy": acc, "train/f1_score": f1}, prog_bar=False, **self.log_conf,
+            {"train/loss": loss, "train/accuracy": acc, "train/f1_score": f1},
+            **self.log_conf
         )
         return loss
 
@@ -37,9 +35,9 @@ class LitModel(LightningModule):
         loss = self.criterion(y_hat, y)
         acc = accuracy(y_hat, y, task='binary')
         f1 = f1_score(y_hat, y, task='binary')
-        self.log("val/loss", loss, prog_bar=True, **self.log_conf)
         self.log_dict(
-            {"val/accuracy": acc, "val/f1_score": f1}, prog_bar=False, **self.log_conf,
+            {"val/loss": loss, "val/accuracy": acc, "val/f1_score": f1},
+            **self.log_conf
         )
 
     def test_step(self, batch, batch_idx):
@@ -48,7 +46,7 @@ class LitModel(LightningModule):
         loss = self.criterion(y_hat, y)
         acc = accuracy(y_hat, y, task='binary')
         f1 = f1_score(y_hat, y, task='binary')
-        self.log("test/loss", loss, prog_bar=True, **self.log_conf)
         self.log_dict(
-            {"test/accuracy": acc, "test/f1_score": f1}, prog_bar=False, **self.log_conf,
+            {"test/loss": loss, "test/accuracy": acc, "test/f1_score": f1},
+            **self.log_conf
         )

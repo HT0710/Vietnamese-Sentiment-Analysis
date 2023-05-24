@@ -6,6 +6,9 @@ from models import GRU
 from data import DataPreprocessing, IMDBDataModule
 
 from lightning.pytorch import Trainer, seed_everything
+from lightning_modules import CALLBACKS
+from rich.traceback import install
+install()
 
 
 def main(config):
@@ -22,14 +25,18 @@ def main(config):
 
     # Model
     config['model']['vocab_size'] = dataset.vocab_size
-    model = GRU(**config['model'], save_hparams=config)
-
+    model = GRU(**config['model'])
+    model.save_hparams(config)
+    
     # Trainer
-    trainer = Trainer(max_epochs=config['trainer']['num_epochs'])
+    trainer = Trainer(
+        max_epochs = config['trainer']['num_epochs'],
+        callbacks = CALLBACKS
+    )
 
     trainer.fit(model, dataset)
 
-    trainer.test(model, dataset, ckpt_path="best")
+    trainer.test(model, dataset)
 
 
 if __name__=="__main__":
