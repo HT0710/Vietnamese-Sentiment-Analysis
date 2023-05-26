@@ -17,11 +17,11 @@ model:
   output_size: 1
   hidden_size: 512
   embedding_size: 300
-  n_layers: 2
+  num_layers: 3
   dropout: 0.25
   batch_first: true
-  bidirectional: true
+  bidirectional: false
 
 trainer:
   learning_rate: 0.001
-  num_epochs: 10
+  num_epochs: 20

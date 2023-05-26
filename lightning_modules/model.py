@@ -12,10 +12,10 @@ class LitModel(LightningModule):
         }
 
     def criterion(self, y_hat, y):
-        raise Exception("You need to overwrite 'criterion' function")
+        raise NotImplementedError("You need to overwrite 'criterion' function")
 
     def configure_optimizers(self):
-        raise Exception("You need to overwrite 'configure_optimizers' function")
+        raise NotImplementedError("You need to overwrite 'configure_optimizers' function")
 
     def training_step(self, batch, batch_idx):
         X, y = batch
