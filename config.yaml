@@ -8,7 +8,7 @@ data:
   data_path: datasets/IMDB.csv
   download: false
   train_val_test_split: !!python/tuple [0.75,  0.15, 0.1]
-  batch_size: 300
+  batch_size: 128
   num_workers: 0
   pin_memory: true
 

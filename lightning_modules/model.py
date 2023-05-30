@@ -1,5 +1,8 @@
 from torchmetrics.functional import accuracy, f1_score
-from lightning.pytorch import LightningModule, Trainer
+from lightning.pytorch import LightningModule
+import torch.nn.functional as F
+import torch.optim as optim
+import torch
 
 
 class LitModel(LightningModule):
@@ -12,10 +15,10 @@ class LitModel(LightningModule):
         }
 
     def criterion(self, y_hat, y):
-        raise Exception("You need to overwrite 'criterion' function")
+        return F.binary_cross_entropy(y_hat, y)
 
     def configure_optimizers(self):
-        raise Exception("You need to overwrite 'configure_optimizers' function")
+        return optim.Adam(self.parameters(), lr=self.hparams.trainer['learning_rate'])
 
     def training_step(self, batch, batch_idx):
         X, y = batch
@@ -50,3 +53,12 @@ class LitModel(LightningModule):
             {"test/loss": loss, "test/accuracy": acc, "test/f1_score": f1},
             **self.log_conf
         )
+    
+    def save_hparams(self, config: dict):
+        config['trainer']['model_name'] = self._get_name()
+        self.hparams.update(config)
+        self.save_hyperparameters()
+
+    def continue_from(self, path: str):
+        checkpoint_state_dict = torch.load(path)['state_dict']
+        self.load_state_dict(checkpoint_state_dict)
