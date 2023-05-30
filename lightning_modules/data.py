@@ -11,27 +11,44 @@ from lightning.pytorch import LightningDataModule
 import nltk
 from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
-import pandas as pd
+import underthesea as uts
+from pyvi import ViUtils
 from rich import print
+import pandas as pd
 
 
 class DataPreparation():
     """Data Preparation"""
 
-    def __init__(self, stem: bool=False, lemma: bool=False):
+    def __init__(
+            self,
+            lang: str = 'en',
+            stopword: bool = False,
+            stem: bool = False,
+            lemma: bool = False,
+            accents: bool = True
+        ):
+        self.lang = self._check_language(lang)
         self.stemmer = PorterStemmer() if stem else None
         self.lemmatizer = WordNetLemmatizer() if lemma else None
-        try:
-            stopwords.words('english')
-        except:
-            self.setup()
-        self.stopwords = set(stopwords.words('english'))
+        self.stopwords = self.get_stopwords() if stopword else None
+        self.accents = accents
 
-    def setup(self):
-        print("Download required packages...")
-        nltk.download('stopwords')  # stopwords
-        nltk.download('punkt')      # tokenize
-        nltk.download('wordnet')    # stem & lemma
+    def _check_language(self, lang: str):
+        lang = lang.strip().lower()
+        if lang not in ['en', 'vn']:
+            raise Exception("Only 'en' or 'vn' are supported.")
+        return lang
+
+    def get_stopwords(self):
+        if self.lang == 'en':
+            nltk.download('stopwords', quiet=True)
+            stopword_list = stopwords.words('english')
+        if self.lang == 'vn':
+            url = 'https://raw.githubusercontent.com/stopwords/vietnamese-stopwords/master/vietnamese-stopwords.txt'
+            responds = requests.get(url)
+            stopword_list = responds.text.split('\n')
+        return set(stopword_list)
 
     def __call__(self, text: str):
         return self.auto(text)
@@ -39,15 +56,19 @@ class DataPreparation():
     def auto(self, text: str):
         out = self.remove_link(text)
         out = self.remove_html(out)
-        out = self.remove_special(out)
-        out = self.remove_numbers(out)
+        out = self.remove_punctuation(out)
+        out = self.format_numbers(out, max=100)
         out = self.remove_non_ascii(out)
         out = self.remove_emoji(out)
         out = self.remove_repeated(out)
+        out = self.text_normalize(out)
+        out = self.remove_accents(out)
         out = self.tokenize(out)
         out = self.remove_stopwords(out)
-        out = self.stemming(out)
-        out = self.lemmatization(out)
+        if self.lang == "en" and (self.stemmer or self.lemmatizer):
+            nltk.download('wordnet', quiet=True)
+            out = self.stemming(out) if self.stemmer else out
+            out = self.lemmatization(out) if self.lemmatizer else out
         return ' '.join(out)
 
     def remove_link(self, text: str):
@@ -56,15 +77,19 @@ class DataPreparation():
 
     def remove_html(self, text: str):
         return re.sub(r'<[^>]+>', ' ', text)
+    
+    def remove_punctuation(self, text: str):
+        return re.sub(r'[^\w\s]', ' ', text)
 
-    def remove_special(self, text: str):
-        return re.sub(r'[^a-zA-Z0-9\s]', ' ', text)
-
-    def remove_numbers(self, text: str):
-        return re.sub(r'\d+', ' ', text)
+    def format_numbers(self, text: str, max: int=100):
+        check_num = lambda x: '<num>' if (int(x.group(0)) > max) else x.group(0)
+        return re.sub(r'\d+', check_num, text)
 
     def remove_non_ascii(self, text: str):
-        return re.sub(r'[^\x00-\x7f]', ' ', text)
+        if self.lang == 'en':
+            return re.sub(r'[^\x00-\x7f]', ' ', text)
+        if self.lang == 'vn':
+            return re.sub(r'ˋ', '', text)
 
     def remove_emoji(self, text: str):
         emojis = re.compile(
@@ -84,17 +109,28 @@ class DataPreparation():
     def remove_repeated(self, text: str):
         return re.sub(r'(.)\1+', r'\1\1', text)
 
+    def text_normalize(self, text: str):
+        text = uts.text_normalize(text) if self.lang == 'vn' else text
+        return text.lower()
+
+    def remove_accents(self, text: str):
+        return ViUtils.remove_accents(text) if (not self.accents and self.lang == 'vn') else text
+
     def tokenize(self, text: str):
-        return nltk.word_tokenize(text)
+        if self.lang == 'en':
+            nltk.download('punkt', quiet=True)
+            return nltk.word_tokenize(text)
+        if self.lang == 'vn':
+            return uts.word_tokenize(text, fixed_words=['<num>'])
 
     def remove_stopwords(self, tokens: list):
-        return [word for word in tokens if word not in self.stopwords]
+        return [word for word in tokens if word not in self.stopwords] if self.stopwords else tokens
 
     def stemming(self, tokens: list):
-        return [self.stemmer.stem(word) for word in tokens] if self.stemmer else tokens
+        return [self.stemmer.stem(word) for word in tokens]
 
     def lemmatization(self, tokens: list):
-        return [self.lemmatizer.lemmatize(word) for word in tokens] if self.lemmatizer else tokens
+        return [self.lemmatizer.lemmatize(word) for word in tokens]
 
 
 class DataPreprocessing():
