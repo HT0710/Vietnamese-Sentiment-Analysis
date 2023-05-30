@@ -257,7 +257,7 @@ class IMDBDataModule(LightningDataModule):
     # Download the dataset
     def _download_data(self):
         data_path = 'datasets/IMDB.csv'
-        url = 'https://raw.githubusercontent.com/HT0710/Sentiment-Analysis/data/IMDB_processed.csv'
+        url = 'https://raw.githubusercontent.com/HT0710/Sentiment-Analysis/data/IMDB.csv'
         response = requests.get(url)
         if response.status_code != 200:
             print("Error occurred while downloading the file."); exit()
