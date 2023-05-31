@@ -3,10 +3,10 @@ from argparse import ArgumentParser
 import yaml
 
 from models import GRU
-from data import DataPreprocessing, IMDBDataModule
+from lightning_modules.data import DataPreprocessing, IMDBDataModule
+from lightning_modules import CALLBACKS
 
 from lightning.pytorch import Trainer, seed_everything
-from lightning_modules import CALLBACKS
 from rich.traceback import install
 install()
 

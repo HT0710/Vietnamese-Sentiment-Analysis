@@ -1,6 +1,4 @@
 from lightning_modules import LitModel
-import torch.nn.functional as F
-import torch.optim as optim
 import torch.nn as nn
 
 
@@ -41,14 +39,3 @@ class GRU(LitModel):
         out = self.fc(out)
         out = self.sigmoid(out)
         return out
-
-    def save_hparams(self, config):
-        config['trainer']['model_name'] = self._get_name()
-        self.hparams.update(config)
-        self.save_hyperparameters()
-
-    def criterion(self, y_hat, y):
-        return F.binary_cross_entropy(y_hat, y)
-
-    def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=self.hparams.trainer['learning_rate'])
