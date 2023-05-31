@@ -1,16 +1,15 @@
 preprocess:
   vocab: null
-  seq_length: 400
+  seq_length: 300
   min_freq: 2
   max_freq: 0.9
 
 data:
   data_path: datasets/IMDB.csv
-  download: false
   train_val_test_split: !!python/tuple [0.75,  0.15, 0.1]
   batch_size: 128
   num_workers: 0
-  pin_memory: true
+  pin_memory: false
 
 model:
   vocab_size: null
@@ -24,4 +23,14 @@ model:
 
 trainer:
   learning_rate: 0.001
-  num_epochs: 20
+  num_epochs: 10
+
+callback:
+  checkpoint:
+    enable: true
+    dirpath: null
+    filename: null
+    weights_only: true
+  earlystopping:
+    enable: false
+    patience: 3
