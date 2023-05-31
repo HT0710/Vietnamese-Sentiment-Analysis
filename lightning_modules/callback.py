@@ -40,7 +40,7 @@ def callbacks_list(config):
     cb_list.append(
         cb.EarlyStopping(
             monitor='val/loss',
-            min_delta=0.001,
+            min_delta=0.0001,
             patience=config['earlystopping']['patience']
         )
     ) if config['earlystopping']['enable'] else None

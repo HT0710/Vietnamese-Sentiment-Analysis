@@ -2,7 +2,7 @@ import os
 from argparse import ArgumentParser
 import yaml
 
-from models import GRU
+from models import GRU, MultiRNN, CRNNParallel
 from lightning_modules.data import DataPreprocessing, IMDBDataModule
 from lightning_modules import callbacks_list
 
@@ -27,7 +27,7 @@ def main(config):
     config['model']['vocab_size'] = dataset.vocab_size
     model = GRU(**config['model'])
     model.save_hparams(config)
-    
+
     # Trainer
     trainer = Trainer(
         max_epochs=config['trainer']['num_epochs'],

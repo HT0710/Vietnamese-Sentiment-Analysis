@@ -3,6 +3,7 @@ from lightning.pytorch import LightningModule
 import torch.nn.functional as F
 import torch.optim as optim
 import torch
+import os
 
 
 class LitModel(LightningModule):
@@ -51,5 +52,7 @@ class LitModel(LightningModule):
         self.save_hyperparameters()
 
     def continue_from(self, path: str):
+        if not os.path.exists(path):
+            raise FileNotFoundError(path)
         checkpoint_state_dict = torch.load(path)['state_dict']
         self.load_state_dict(checkpoint_state_dict)
