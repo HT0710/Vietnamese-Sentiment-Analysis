@@ -5,11 +5,10 @@ preprocess:
   max_freq: 0.9
 
 data:
-  data_path: datasets/IMDB.csv
   train_val_test_split: !!python/tuple [0.75,  0.15, 0.1]
   batch_size: 128
   num_workers: 0
-  pin_memory: false
+  pin_memory: true
 
 model:
   vocab_size: null
@@ -32,5 +31,5 @@ callback:
     filename: null
     weights_only: true
   earlystopping:
-    enable: false
+    enable: true
     patience: 3
