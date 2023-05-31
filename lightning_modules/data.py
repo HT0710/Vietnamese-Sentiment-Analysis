@@ -38,7 +38,7 @@ class DataPreparation():
     def _check_language(self, lang: str):
         lang = lang.strip().lower()
         if lang not in ['en', 'vn']:
-            raise Exception("Only 'en' or 'vn' are supported.")
+            raise ValueError("Only 'en' or 'vn' are supported.")
         return lang
 
     def get_stopwords(self):
@@ -78,7 +78,7 @@ class DataPreparation():
 
     def remove_html(self, text: str):
         return re.sub(r'<[^>]+>', ' ', text)
-    
+
     def remove_punctuation(self, text: str):
         return re.sub(r'[^\w\s]', ' ', text)
 
@@ -256,14 +256,12 @@ class IMDBDataModule(LightningDataModule):
 
     def _download_data(self):
         url = 'https://raw.githubusercontent.com/HT0710/Sentiment-Analysis/data/en/IMDB.csv'
-        response = requests.get(url)
-        if response.status_code == 200:
+        with requests.get(url, stream=True) as response:
+            response.raise_for_status()
             os.mkdir('datasets') if not os.path.exists('datasets') else None
             with open(self.data_path, "wb") as file:
-                for chunk in track(response.iter_content(chunk_size=1024), 'Download dataset...'):
+                for chunk in track(response.iter_content(chunk_size=4096), 'Download the dataset'):
                     file.write(chunk)
-        else:
-            raise ConnectionError("Error occurred while downloading the dataset.")
 
     def _load_data(self):
         self._download_data() if not os.path.exists(self.data_path) else None

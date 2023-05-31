@@ -7,27 +7,22 @@ class GRU(LitModel):
             self,
             vocab_size: int,
             output_size: int = 1,
-            hidden_size: int = 128,
             embedding_size: int = 400,
-            num_layers: int = 2,
-            dropout: float = 0.2,
-            batch_first: bool = True,
-            bidirectional: bool = False,
+            hidden_size: int = 128
         ):
         super().__init__()
+        config = {
+            "dropout": 0.25,
+            "num_layers": 2,
+            "batch_first": True,
+            "bidirectional": True,
+        }
         self.embedding = nn.Embedding(vocab_size, embedding_size)
-        self.gru = nn.GRU(
-            input_size = embedding_size,
-            hidden_size = hidden_size,
-            num_layers = num_layers,
-            dropout = dropout,
-            batch_first = batch_first,
-            bidirectional = bidirectional
-        )
+        self.gru = nn.GRU(embedding_size, hidden_size, **config)
         self.dropout = nn.Dropout(0.3)
         self.fc = nn.Linear(
-            in_features = hidden_size*2 if bidirectional else hidden_size,
-            out_features = output_size
+            in_features=hidden_size*2 if config['bidirectional'] else hidden_size,
+            out_features=output_size
         )
         self.sigmoid = nn.Sigmoid()
 
