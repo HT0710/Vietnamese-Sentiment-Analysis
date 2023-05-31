@@ -3,12 +3,13 @@ import torch.nn as nn
 
 
 class GRU(LitModel):
-    def __init__(self,
+    def __init__(
+            self,
             vocab_size: int,
             output_size: int = 1,
             hidden_size: int = 128,
             embedding_size: int = 400,
-            n_layers: int = 2,
+            num_layers: int = 2,
             dropout: float = 0.2,
             batch_first: bool = True,
             bidirectional: bool = False,
@@ -18,7 +19,7 @@ class GRU(LitModel):
         self.gru = nn.GRU(
             input_size = embedding_size,
             hidden_size = hidden_size,
-            num_layers = n_layers,
+            num_layers = num_layers,
             dropout = dropout,
             batch_first = batch_first,
             bidirectional = bidirectional

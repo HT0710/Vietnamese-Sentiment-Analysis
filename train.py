@@ -4,7 +4,7 @@ import yaml
 
 from models import GRU
 from lightning_modules.data import DataPreprocessing, IMDBDataModule
-from lightning_modules import CALLBACKS
+from lightning_modules import callbacks_list
 
 from lightning.pytorch import Trainer, seed_everything
 from rich.traceback import install
@@ -30,8 +30,8 @@ def main(config):
     
     # Trainer
     trainer = Trainer(
-        max_epochs = config['trainer']['num_epochs'],
-        callbacks = CALLBACKS
+        max_epochs=config['trainer']['num_epochs'],
+        callbacks=callbacks_list(config['callback'])
     )
 
     trainer.fit(model, dataset)

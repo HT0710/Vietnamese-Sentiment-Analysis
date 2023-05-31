@@ -13,6 +13,7 @@ from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
 import underthesea as uts
 from pyvi import ViUtils
+from rich.progress import track
 from rich import print
 import pandas as pd
 
@@ -221,16 +222,17 @@ class IMDBDataModule(LightningDataModule):
 
     def __init__(
             self,
-            data_path: str = 'datasets/IMDB.csv',
-            download: bool = True,
             preprocessing: Any = DataPreprocessing(),
             train_val_test_split: Tuple = (0.75, 0.1, 0.15),
             batch_size: int = 32,
             num_workers: int = 0,
-            pin_memory: bool = False,
+            pin_memory: bool = True,
     ):
         super().__init__()
-        self.save_hyperparameters(logger=False)
+        self.data_path = 'datasets/IMDB.csv'
+        self.dataset = self._load_data()
+        self.preprocesser = preprocessing
+        self.split_size = train_val_test_split
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
         self.data_test: Optional[Dataset] = None
@@ -246,45 +248,36 @@ class IMDBDataModule(LightningDataModule):
 
     @property
     def vocab_size(self):
-        preprocesser = self.hparams.preprocessing
-        if not preprocesser.vocab:
-            corpus = pd.read_csv(self.hparams.data_path)['text'].tolist()
-            vocab = preprocesser.build_vocabulary(corpus, **preprocesser.vocab_conf)
-        else:
-            vocab = preprocesser.vocab
+        vocab = self.preprocesser.vocab
+        if not vocab:
+            corpus = self.dataset['text'].tolist()
+            vocab = self.preprocesser.build_vocabulary(corpus, **self.preprocesser.vocab_conf)
         return len(vocab)
 
-    # Download the dataset
     def _download_data(self):
-        data_path = 'datasets/IMDB.csv'
-        url = 'https://raw.githubusercontent.com/HT0710/Sentiment-Analysis/data/IMDB.csv'
+        url = 'https://raw.githubusercontent.com/HT0710/Sentiment-Analysis/data/en/IMDB.csv'
         response = requests.get(url)
-        if response.status_code != 200:
-            print("Error occurred while downloading the file."); exit()
-        else:
-            print(f"Start download into '{data_path}'")
+        if response.status_code == 200:
             os.mkdir('datasets') if not os.path.exists('datasets') else None
-            with open(data_path, "wb") as file:
-                file.write(response.content)
-            print("File downloaded successfully.")
-            return data_path
+            with open(self.data_path, "wb") as file:
+                for chunk in track(response.iter_content(chunk_size=1024), 'Download dataset...'):
+                    file.write(chunk)
+        else:
+            raise ConnectionError("Error occurred while downloading the dataset.")
+
+    def _load_data(self):
+        self._download_data() if not os.path.exists(self.data_path) else None
+        return pd.read_csv(self.data_path).dropna()
 
     def prepare_data(self):
-        if not os.path.exists(self.hparams.data_path):
-            print("Dataset not found!")
-            self.hparams.data_path = self._download_data() if self.hparams.download else exit()
-        dataset = pd.read_csv(self.hparams.data_path)
-        self.labels = dataset['label'].tolist()
-        raw_corpus = dataset['text'].tolist()
-        self.corpus = self.hparams.preprocessing(raw_corpus)
+        raw_corpus = self.dataset['text'].tolist()
+        self.corpus = self.preprocesser(raw_corpus)
+        self.labels = self.dataset['label'].tolist()
 
     def setup(self, stage: str):
-        if not self.data_train and not self.data_val and not self.data_test:
+        if not (self.data_train and self.data_val and self.data_test):
             dataset = DataModule(self.corpus, self.labels)
-            self.data_train, self.data_val, self.data_test = random_split(
-                dataset=dataset,
-                lengths=self.hparams.train_val_test_split,
-            )
+            self.data_train, self.data_val, self.data_test = random_split(dataset=dataset, lengths=self.split_size)
 
     def train_dataloader(self):
         return DataLoader(dataset=self.data_train, **self.dl_conf, shuffle=True)

@@ -1,2 +1,2 @@
 from .model import LitModel
-from .callback import CALLBACKS
+from .callback import callbacks_list
