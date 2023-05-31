@@ -10,9 +10,6 @@ class LitModel(LightningModule):
 
     def __init__(self):
         super().__init__()
-        self.log_conf = {
-            "on_step": False, "on_epoch": True, "prog_bar": False, "logger": True
-        }
 
     def criterion(self, y_hat, y):
         return F.binary_cross_entropy(y_hat, y)
@@ -28,7 +25,7 @@ class LitModel(LightningModule):
         f1 = f1_score(y_hat, y, task='binary')
         self.log_dict(
             {"train/loss": loss, "train/accuracy": acc, "train/f1_score": f1},
-            **self.log_conf
+            on_step=True, on_epoch=False
         )
         return loss
 
@@ -38,10 +35,7 @@ class LitModel(LightningModule):
         loss = self.criterion(y_hat, y)
         acc = accuracy(y_hat, y, task='binary')
         f1 = f1_score(y_hat, y, task='binary')
-        self.log_dict(
-            {"val/loss": loss, "val/accuracy": acc, "val/f1_score": f1},
-            **self.log_conf
-        )
+        self.log_dict({"val/loss": loss, "val/accuracy": acc, "val/f1_score": f1})
 
     def test_step(self, batch, batch_idx):
         X, y = batch
@@ -49,10 +43,7 @@ class LitModel(LightningModule):
         loss = self.criterion(y_hat, y)
         acc = accuracy(y_hat, y, task='binary')
         f1 = f1_score(y_hat, y, task='binary')
-        self.log_dict(
-            {"test/loss": loss, "test/accuracy": acc, "test/f1_score": f1},
-            **self.log_conf
-        )
+        self.log_dict({"test/loss": loss, "test/accuracy": acc, "test/f1_score": f1})
     
     def save_hparams(self, config: dict):
         config['trainer']['model_name'] = self._get_name()

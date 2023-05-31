@@ -13,12 +13,8 @@ data:
 model:
   vocab_size: null
   output_size: 1
-  hidden_size: 512
   embedding_size: 300
-  num_layers: 3
-  dropout: 0.25
-  batch_first: true
-  bidirectional: false
+  hidden_size: 512
 
 trainer:
   learning_rate: 0.001
