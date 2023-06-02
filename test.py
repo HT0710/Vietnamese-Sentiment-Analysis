@@ -30,7 +30,7 @@ model = GRU(
     dropout=DROPOUT
 ).to(DEVICE)
 
-model.load_state_dict(torch.load("checkpoints/GRU/E5_L0.2950_A0.88.pth"))
+model.load_state_dict(torch.load("checkpoints/GRU/E5_L0.2950_A0.88.pth", map_location=DEVICE))
 
 cleaner = Cleanup()
 preprocesser = Preprocess(True, True)

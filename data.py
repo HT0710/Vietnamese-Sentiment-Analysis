@@ -78,12 +78,9 @@ class Cleanup():
 
 class Preprocess():
     def __init__(self, stem: bool=False, lemma: bool=False):
+        self.setup()
         self.stemmer = PorterStemmer() if stem else None
         self.lemmatizer = WordNetLemmatizer() if lemma else None
-        try:
-            stopwords.words('english')
-        except:
-            self.setup()
         self.stopwords = set(stopwords.words('english'))
     
     def __call__(self, text):
@@ -98,9 +95,9 @@ class Preprocess():
     
     def setup(self):
         print("Download required packages...")
-        nltk.download('stopwords')  # stopwords
-        nltk.download('punkt')      # tokenize
-        nltk.download('wordnet')    # stem & lemma
+        nltk.download('stopwords', quiet=True)  # stopwords
+        nltk.download('punkt', quiet=True)      # tokenize
+        nltk.download('wordnet', quiet=True)    # stem & lemma
     
     def tokenize(self, text: str):
         return nltk.word_tokenize(text)
