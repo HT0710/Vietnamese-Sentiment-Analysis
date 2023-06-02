@@ -94,7 +94,6 @@ class Preprocess():
         return ' '.join(out)
     
     def setup(self):
-        print("Download required packages...")
         nltk.download('stopwords', quiet=True)  # stopwords
         nltk.download('punkt', quiet=True)      # tokenize
         nltk.download('wordnet', quiet=True)    # stem & lemma
