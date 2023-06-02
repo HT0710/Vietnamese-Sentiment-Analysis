@@ -1,13 +1,12 @@
-from utils import train_step, test_step, save_model, build_vocabulary, word2int, truncate_sequences, pad_sequences, overprint
+from utils import train_step, test_step, save_model, build_vocabulary, word2int, truncate_sequences, pad_sequences
 from torch.utils.data import DataLoader, random_split
 from models import RNN, LSTM, GRU
 from data import DataModule
 import torch.optim as optim
 import torch.nn as nn
 import pandas as pd
+import os, math
 import torch
-import os
-
 
 
 torch.manual_seed(42)
@@ -15,16 +14,16 @@ torch.cuda.manual_seed(42)
 
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-NUM_WOKER = os.cpu_count()
+NUM_WOKER = os.cpu_count() if DEVICE == 'cuda' else 0
 
 # Impact performance
 TRAIN_TEST_SIZE = (0.8, 0.2)
-SEQ_LENGTH = 500
+SEQ_LENGTH = 400
 EMBEDDING_SIZE = 300
 HIDDEN_SIZE = 512
 NUM_LAYER = 2
 DROPOUT = 0.25
-BATCH_SIZE = 210
+BATCH_SIZE = 200
 LEARNING_RATE = 0.001
 EPOCHS = 20
 
@@ -55,7 +54,7 @@ train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, num_w
 test_loader = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WOKER)
 
 # Model
-model = LSTM(
+model = GRU(
     vocab_size=len(vocab),
     output_size=1,
     hidden_size=HIDDEN_SIZE,
@@ -68,6 +67,16 @@ model = LSTM(
 criterion = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=4)
+
+# Others
+best_loss = {
+    'name': None,
+    'value': math.inf
+}
+earlystopping = {
+    'patient': 3,
+    'count': 0
+}
 
 # Training loop
 for epoch in range(EPOCHS):
@@ -85,5 +94,15 @@ for epoch in range(EPOCHS):
 
     print(f"  |- Loss: {train_loss:.4f}  Acc: {train_acc:.4f} | Test_loss: {test_loss:.4f}  Test_acc: {test_acc:.4f}")
 
-    if (epoch+1) % 1 == 0 and test_acc >= 0.8:
-        save_model(model=model, target_dir="checkpoints", model_name=f"E{epoch+1}_L{test_loss:.4f}_A{test_acc:.2f}.pth")
+    if test_loss < best_loss['value']:
+        save_dir = f"checkpoints/{model._get_name()}"
+        if best_loss['name'] is not None:
+            os.remove(f"{save_dir}/{best_loss['name']}")
+        best_loss['value'] = test_loss
+        best_loss['name'] = f"E{epoch+1}_L{best_loss['value']:.4f}_A{test_acc:.2f}.pth"
+        save_model(model=model, target_dir=save_dir, model_name=best_loss['name'])
+        earlystopping['count'] = 0
+    else:
+        earlystopping['count'] += 1
+        if earlystopping['count'] == earlystopping['patient']:
+            exit("Exit by Early Stopping.")

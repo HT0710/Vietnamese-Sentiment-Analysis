@@ -109,7 +109,7 @@ def test_step(
 def save_model(model: nn.Module, target_dir: str, model_name: str):
     """Save model"""
     
-    target_path = Path(target_dir) / model._get_name()
+    target_path = Path(target_dir)
     target_path.mkdir(parents=True, exist_ok=True)
 
     # Create model save path
