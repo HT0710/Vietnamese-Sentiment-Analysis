@@ -3,3 +3,4 @@
 test.py
 *.pth
 *.csv
+lightning_logs/
