@@ -1,31 +1,31 @@
-import os
 from argparse import ArgumentParser
-import yaml
-
-from models import GRU, MultiRNN, CRNNParallel
-from lightning_modules.data import DataPreprocessing, IMDBDataModule
-from lightning_modules import callbacks_list
+import os, yaml
 
 from lightning.pytorch import Trainer, seed_everything
+from lightning_modules import callbacks_list
+import lightning_modules.data as data
+import models
+import torch
+
 from rich.traceback import install
 install()
 
 
-def main(config):
-    # Set seed
-    seed_everything(seed=42, workers=True)
+# Set seed
+seed_everything(seed=42, workers=True)
 
+
+def main(config):
     # Preprocessing
-    config['preprocess']['vocab'] = None  # change if use custom vocab
-    preprocesser = DataPreprocessing(**config["preprocess"])
+    preprocesser = data.DataPreprocessing(**config["preprocess"])
 
     # Dataset
-    config['data']['num_workers'] = os.cpu_count()
-    dataset = IMDBDataModule(preprocessing=preprocesser, **config['data'])
+    config['data']['num_workers'] = os.cpu_count() if torch.cuda.is_available() else 0
+    dataset = data.IMDBDataModule(preprocessing=preprocesser, **config['data'])
 
     # Model
     config['model']['vocab_size'] = dataset.vocab_size
-    model = GRU(**config['model'])
+    model = models.RNNParallel(**config['model'])
     model.save_hparams(config)
 
     # Trainer
