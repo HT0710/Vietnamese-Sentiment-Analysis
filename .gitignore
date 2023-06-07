@@ -1,6 +1,5 @@
 
 *.pyc
-test.py
 *.pth
 *.csv
 TODO.md
