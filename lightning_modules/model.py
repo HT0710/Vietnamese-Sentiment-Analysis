@@ -54,5 +54,6 @@ class LitModel(LightningModule):
     def continue_from(self, path: str):
         if not os.path.exists(path):
             raise FileNotFoundError(path)
-        checkpoint_state_dict = torch.load(path)['state_dict']
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        checkpoint_state_dict = torch.load(path, map_location=device)['state_dict']
         self.load_state_dict(checkpoint_state_dict)
