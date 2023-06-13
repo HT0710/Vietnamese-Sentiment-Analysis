@@ -1,5 +1,4 @@
-import os, re
-import requests
+import os, re, requests
 from typing import Tuple, Optional, Any
 from collections import Counter
 
@@ -13,27 +12,22 @@ from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
 import underthesea as uts
 from pyvi import ViUtils
+
+import pandas as pd
+from sklearn.preprocessing import OneHotEncoder
 from rich.progress import track
 from rich import print
-import pandas as pd
 
 
 class DataPreparation():
     """Data Preparation"""
 
-    def __init__(
-            self,
-            lang: str = 'en',
-            stopword: bool = False,
-            stem: bool = False,
-            lemma: bool = False,
-            accents: bool = True
-        ):
+    def __init__(self, lang: str ='en', config: dict=None):
         self.lang = self._check_language(lang)
-        self.stemmer = PorterStemmer() if stem else None
-        self.lemmatizer = WordNetLemmatizer() if lemma else None
-        self.stopwords = self.get_stopwords() if stopword else None
-        self.accents = accents
+        self.stemmer = PorterStemmer()
+        self.lemmatizer = WordNetLemmatizer()
+        self.stopwords = self._get_stopwords()
+        self.config = config
 
     def _check_language(self, lang: str):
         lang = lang.strip().lower()
@@ -41,7 +35,7 @@ class DataPreparation():
             raise ValueError("Only 'en' or 'vn' are supported.")
         return lang
 
-    def get_stopwords(self):
+    def _get_stopwords(self):
         if self.lang == 'en':
             nltk.download('stopwords', quiet=True)
             stopword_list = stopwords.words('english')
@@ -52,24 +46,38 @@ class DataPreparation():
         return set(stopword_list)
 
     def __call__(self, text: str):
-        return self.auto(text)
+        config = self.config if isinstance(self.config, dict) else {}
+        return self.auto(text, **config)
 
-    def auto(self, text: str):
+    def auto(
+            self,
+            text: str,
+            tokenize: bool = True,
+            stopwords: bool = True,
+            accents: bool = True,
+            number_limit: int = 0,
+            char_limit: int = 10,
+            stem: bool = False,
+            lemma: bool = False,
+        ):
         out = self.remove_link(text)
         out = self.remove_html(out)
         out = self.remove_punctuation(out)
-        out = self.format_numbers(out, max=100)
         out = self.remove_non_ascii(out)
         out = self.remove_emoji(out)
         out = self.remove_repeated(out)
-        out = self.text_normalize(out)
-        out = self.remove_accents(out)
+        out = self.format_numbers(out, max=number_limit)
+        out = self.text_normalize(out) if (self.lang == "vn") else out
         out = self.tokenize(out)
-        out = self.remove_stopwords(out)
-        if self.lang == "en" and (self.stemmer or self.lemmatizer):
+        out = self.remove_stopwords(out) if not stopwords else out
+        out = self.remove_incorrect(out, min_length=0, max_length=char_limit)
+        if self.lang == "vn":
+            out = self.remove_accents(out) if not accents else out
+            out = self.format_words(out) if tokenize else out
+        if self.lang == "en":
             nltk.download('wordnet', quiet=True)
-            out = self.stemming(out) if self.stemmer else out
-            out = self.lemmatization(out) if self.lemmatizer else out
+            out = self.stemming(out) if stem else out
+            out = self.lemmatization(out) if lemma else out
         return ' '.join(out)
 
     def remove_link(self, text: str):
@@ -81,10 +89,6 @@ class DataPreparation():
 
     def remove_punctuation(self, text: str):
         return re.sub(r'[^\w\s]', ' ', text)
-
-    def format_numbers(self, text: str, max: int=100):
-        check_num = lambda x: '<num>' if (int(x.group(0)) > max) else x.group(0)
-        return re.sub(r'\d+', check_num, text)
 
     def remove_non_ascii(self, text: str):
         if self.lang == 'en':
@@ -110,12 +114,13 @@ class DataPreparation():
     def remove_repeated(self, text: str):
         return re.sub(r'(.)\1+', r'\1\1', text)
 
-    def text_normalize(self, text: str):
-        text = uts.text_normalize(text) if self.lang == 'vn' else text
-        return text.lower()
+    def format_numbers(self, text: str, max: int=100):
+        check_num = lambda x: '<num>' if (int(x.group(0)) >= max) else x.group(0)
+        return re.sub(r'\d+', check_num, text)
 
-    def remove_accents(self, text: str):
-        return ViUtils.remove_accents(text) if (not self.accents and self.lang == 'vn') else text
+    def text_normalize(self, text: str):
+        text = uts.text_normalize(text)
+        return text.lower().strip()
 
     def tokenize(self, text: str):
         if self.lang == 'en':
@@ -125,7 +130,17 @@ class DataPreparation():
             return uts.word_tokenize(text, fixed_words=['<num>'])
 
     def remove_stopwords(self, tokens: list):
-        return [word for word in tokens if word not in self.stopwords] if self.stopwords else tokens
+        return [word for word in tokens if word not in self.stopwords]
+
+    def remove_incorrect(self, tokens: list, min_length: int=0, max_length: int=10):
+        check = lambda x: True if (min_length <= len(x) <= max_length) else (" " in x)
+        return [word for word in tokens if check(word)]
+
+    def remove_accents(self, tokens: list):
+        return [str(ViUtils.remove_accents(word), "UTF-8") for word in tokens]
+
+    def format_words(self, tokens: list):
+        return [word.replace(" ", "_") for word in tokens]
 
     def stemming(self, tokens: list):
         return [self.stemmer.stem(word) for word in tokens]
@@ -139,13 +154,11 @@ class DataPreprocessing():
 
     def __init__(
             self,
-            vocab: list = None,
             seq_length: int = 128,
             min_freq: int|float = 1,
             max_freq: int|float = 1.,
         ):
         """Data preprocessing"""
-        self.vocab = vocab
         self.seq_length = seq_length
         self.vocab_conf = {
             'min_freq': min_freq,
@@ -159,7 +172,7 @@ class DataPreprocessing():
     def auto(self, corpus: list[str]):
         """Auto pass through all step"""
         print("[bold]Preprocessing:[/] Building vocabulary...", end='\r')
-        vocab = self.build_vocabulary(corpus, **self.vocab_conf) if not self.vocab else self.vocab
+        vocab = self.build_vocabulary(corpus, **self.vocab_conf)
         print("[bold]Preprocessing:[/] Converting word2int...", end='\r')
         encoded = self.word2int(corpus, vocab)
         print("[bold]Preprocessing:[/] Truncating...         ", end='\r')
@@ -186,8 +199,8 @@ class DataPreprocessing():
 
     def word2int(self, corpus: list[str], vocab: dict):
         """Convert words to integer base on vocab"""
-        encoder = lambda token: vocab[token] if token in vocab else self.vocab['<unk>']
-        return [[encoder(token) for token in seq.split()] for seq in corpus]
+        convert = lambda token: vocab[token] if token in vocab else self.vocab['<unk>']
+        return [[convert(token) for token in seq.split()] for seq in corpus]
 
     def truncate_sequences(self, corpus: list[str], seq_length=128):
         """Truncate the sequences"""
@@ -213,25 +226,24 @@ class DataModule(Dataset):
         text = self.corpus[idx]
         label = self.labels[idx]
         text_tensor = torch.as_tensor(text, dtype=torch.long)
-        label_tensor = torch.as_tensor(label, dtype=torch.float).unsqueeze(0)
+        label_tensor = torch.as_tensor(label, dtype=torch.float)
         return text_tensor, label_tensor
 
 
-class IMDBDataModule(LightningDataModule):
-    """IMDB Lightning Data Module"""
-
+class CustomDataModule(LightningDataModule):
     def __init__(
             self,
+            data_path: str,
+            url: str = None,
             preprocessing: Any = DataPreprocessing(),
             train_val_test_split: Tuple = (0.75, 0.1, 0.15),
             batch_size: int = 32,
             num_workers: int = 0,
             pin_memory: bool = True,
-    ):
+        ):
         super().__init__()
-        self.data_path = 'datasets/IMDB.csv'
-        self.dataset = self._load_data()
-        self.preprocesser = preprocessing
+        self.dataset = self._load_data(data_path, url)
+        self.preprocess = preprocessing
         self.split_size = train_val_test_split
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
@@ -243,34 +255,45 @@ class IMDBDataModule(LightningDataModule):
         }
 
     @property
+    def classes(self):
+        raise NotImplementedError("Value is still not implemented in this subclass.")
+
+    @property
     def num_classes(self):
-        return 2
+        raise NotImplementedError("Value is still not implemented in this subclass.")
 
     @property
     def vocab_size(self):
-        vocab = self.preprocesser.vocab
-        if not vocab:
+        if not hasattr(self.preprocess, "vocab"):
             corpus = self.dataset['text'].tolist()
-            vocab = self.preprocesser.build_vocabulary(corpus, **self.preprocesser.vocab_conf)
-        return len(vocab)
+            self.preprocess.vocab = self.preprocess.build_vocabulary(corpus, **self.preprocess.vocab_conf)
+        return len(self.preprocess.vocab)
 
-    def _download_data(self):
-        url = 'https://raw.githubusercontent.com/HT0710/Sentiment-Analysis/data/en/IMDB.csv'
+    def _download_data(self, data_path: str, url: str):
+        if url is None:
+            raise NotImplementedError("URL was not set when trying to download.")
         with requests.get(url, stream=True) as response:
             response.raise_for_status()
             os.mkdir('datasets') if not os.path.exists('datasets') else None
-            with open(self.data_path, "wb") as file:
-                for chunk in track(response.iter_content(chunk_size=4096), 'Download the dataset'):
+            with open(data_path, "wb") as file:
+                for chunk in track(response.iter_content(chunk_size=4096), 'Downloading'):
                     file.write(chunk)
 
-    def _load_data(self):
-        self._download_data() if not os.path.exists(self.data_path) else None
-        return pd.read_csv(self.data_path).dropna()
+    def _load_data(self, data_path: str, url: str=None):
+        if not os.path.exists(data_path):
+            print(f"Dataset not found. Download to [bold][green]{data_path}[/][/]")
+            self._download_data(data_path, url)
+        return pd.read_csv(data_path).dropna()
+
+    def _label_encoding(self, labels):
+        encoder = OneHotEncoder()
+        return encoder.fit_transform(labels).toarray()
 
     def prepare_data(self):
-        raw_corpus = self.dataset['text'].tolist()
-        self.corpus = self.preprocesser(raw_corpus)
-        self.labels = self.dataset['label'].tolist()
+        raw_corpus = self.dataset['text'].array
+        raw_labels = self.dataset['label'].array.reshape(-1, 1)
+        self.corpus = self.preprocess(raw_corpus)
+        self.labels = self._label_encoding(raw_labels)
 
     def setup(self, stage: str):
         if not (self.data_train and self.data_val and self.data_test):
@@ -285,3 +308,55 @@ class IMDBDataModule(LightningDataModule):
 
     def test_dataloader(self):
         return DataLoader(dataset=self.data_test, **self.dl_conf, shuffle=False)
+
+
+class IMDBDataModule(CustomDataModule):
+    def __init__(
+            self,
+            preprocessing: Any = DataPreprocessing(),
+            train_val_test_split: Tuple = (0.75, 0.1, 0.15),
+            batch_size: int = 32,
+            num_workers: int = 0,
+            pin_memory: bool = True,
+    ):
+        kwargs = locals().copy()
+        [ kwargs.pop(x) for x in ['self', '__class__'] ]
+        super().__init__(
+            data_path='datasets/IMDB.csv',
+            url='https://raw.githubusercontent.com/HT0710/Sentiment-Analysis/data/en/IMDB.csv',
+            **kwargs
+        )
+
+    @property
+    def classes(self):
+        return ['Negative', 'Positive']
+
+    @property
+    def num_classes(self):
+        return 2
+
+
+class VietDataModule(CustomDataModule):
+    def __init__(
+            self,
+            preprocessing: Any = DataPreprocessing(),
+            train_val_test_split: Tuple = (0.75, 0.1, 0.15),
+            batch_size: int = 32,
+            num_workers: int = 0,
+            pin_memory: bool = True,
+    ):
+        kwargs = locals().copy()
+        [ kwargs.pop(x) for x in ['self', '__class__'] ]
+        super().__init__(
+            data_path='datasets/viet_full.csv',
+            url='https://raw.githubusercontent.com/HT0710/Sentiment-Analysis/data/vn/viet_full.csv',
+            **kwargs
+        )
+
+    @property
+    def classes(self):
+        return ['Negative', 'Neutral', 'Positive']
+
+    @property
+    def num_classes(self):
+        return 3
