@@ -51,7 +51,7 @@ class LitModel(LightningModule):
         self.hparams.update(config)
         self.save_hyperparameters()
 
-    def load(self, path: str):
+    def continue_from(self, path: str):
         if not os.path.exists(path):
             raise FileNotFoundError(path)
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
