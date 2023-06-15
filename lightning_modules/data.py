@@ -14,7 +14,6 @@ import underthesea as uts
 from pyvi import ViUtils
 
 import pandas as pd
-from sklearn.preprocessing import OneHotEncoder
 from rich.progress import track
 from rich import print
 
@@ -22,63 +21,33 @@ from rich import print
 class DataPreparation():
     """Data Preparation"""
 
-    def __init__(self, lang: str ='en', config: dict=None):
-        self.lang = self._check_language(lang)
+    def __init__(self, stopwords: bool=True, char_limit: int=10, number_limit: int=-1):
         self.stemmer = PorterStemmer()
         self.lemmatizer = WordNetLemmatizer()
-        self.stopwords = self._get_stopwords()
-        self.config = config
-
-    def _check_language(self, lang: str):
-        lang = lang.strip().lower()
-        if lang not in ['en', 'vn']:
-            raise ValueError("Only 'en' or 'vn' are supported.")
-        return lang
-
-    def _get_stopwords(self):
-        if self.lang == 'en':
-            nltk.download('stopwords', quiet=True)
-            stopword_list = stopwords.words('english')
-        if self.lang == 'vn':
-            url = 'https://raw.githubusercontent.com/stopwords/vietnamese-stopwords/master/vietnamese-stopwords.txt'
-            responds = requests.get(url)
-            stopword_list = responds.text.split('\n')
-        return set(stopword_list)
+        self.stopwords = []
+        self._config = {
+            'stopwords': stopwords,
+            'number_limit': number_limit,
+            'char_limit': char_limit
+        }
 
     def __call__(self, text: str):
-        config = self.config if isinstance(self.config, dict) else {}
-        return self.auto(text, **config)
+        return self.auto(text)
 
-    def auto(
-            self,
-            text: str,
-            tokenize: bool = True,
-            stopwords: bool = True,
-            accents: bool = True,
-            number_limit: int = 0,
-            char_limit: int = 10,
-            stem: bool = False,
-            lemma: bool = False,
-        ):
+    def auto(self, text: str, string: bool=True) -> str|list:
         out = self.remove_link(text)
         out = self.remove_html(out)
         out = self.remove_punctuation(out)
         out = self.remove_non_ascii(out)
         out = self.remove_emoji(out)
         out = self.remove_repeated(out)
-        out = self.format_numbers(out, max=number_limit)
-        out = self.text_normalize(out) if (self.lang == "vn") else out
+        out = self.text_normalize(out)
         out = self.tokenize(out)
-        out = self.remove_stopwords(out) if not stopwords else out
-        out = self.remove_incorrect(out, min_length=0, max_length=char_limit)
-        if self.lang == "vn":
-            out = self.remove_accents(out) if not accents else out
-            out = self.format_words(out) if tokenize else out
-        if self.lang == "en":
-            nltk.download('wordnet', quiet=True)
-            out = self.stemming(out) if stem else out
-            out = self.lemmatization(out) if lemma else out
-        return ' '.join(out)
+        out = self.remove_stopwords(out) if not self._config['stopwords'] else out
+        out = self.remove_incorrect(out, min_length=0, max_length=self._config['char_limit'])
+        out = self.format_numbers(out, max=self._config['number_limit'])
+        out = self.remove_duplicated(out)
+        return ' '.join(out) if string else out
 
     def remove_link(self, text: str):
         pattern = r'https?://\S+|www\.\S+'
@@ -91,10 +60,7 @@ class DataPreparation():
         return re.sub(r'[^\w\s]', ' ', text)
 
     def remove_non_ascii(self, text: str):
-        if self.lang == 'en':
-            return re.sub(r'[^\x00-\x7f]', ' ', text)
-        if self.lang == 'vn':
-            return re.sub(r'ˋ', '', text)
+        return re.sub(r'[^\x00-\x7f]', ' ', text)
 
     def remove_emoji(self, text: str):
         emojis = re.compile(
@@ -114,39 +80,105 @@ class DataPreparation():
     def remove_repeated(self, text: str):
         return re.sub(r'(.)\1+', r'\1\1', text)
 
-    def format_numbers(self, text: str, max: int=100):
-        check_num = lambda x: '<num>' if (int(x.group(0)) >= max) else x.group(0)
-        return re.sub(r'\d+', check_num, text)
-
     def text_normalize(self, text: str):
-        text = uts.text_normalize(text)
         return text.lower().strip()
 
     def tokenize(self, text: str):
-        if self.lang == 'en':
-            nltk.download('punkt', quiet=True)
-            return nltk.word_tokenize(text)
-        if self.lang == 'vn':
-            return uts.word_tokenize(text, fixed_words=['<num>'])
+        return nltk.word_tokenize(text)
+
+    def format_numbers(self, tokens: list, max: int=100):
+        def check_number(x: str):
+            if not x.isdigit():
+                return x
+            return '<num>' if int(x) > max else x
+        return [check_number(word) for word in tokens]
 
     def remove_stopwords(self, tokens: list):
         return [word for word in tokens if word not in self.stopwords]
 
     def remove_incorrect(self, tokens: list, min_length: int=0, max_length: int=10):
-        check = lambda x: True if (min_length <= len(x) <= max_length) else (" " in x)
+        check = lambda x: True if (min_length <= len(x) <= max_length) else (' ' in x)
         return [word for word in tokens if check(word)]
 
     def remove_accents(self, tokens: list):
         return [str(ViUtils.remove_accents(word), "UTF-8") for word in tokens]
 
     def format_words(self, tokens: list):
-        return [word.replace(" ", "_") for word in tokens]
+        return [word.replace(' ', '_') for word in tokens]
 
     def stemming(self, tokens: list):
         return [self.stemmer.stem(word) for word in tokens]
 
     def lemmatization(self, tokens: list):
         return [self.lemmatizer.lemmatize(word) for word in tokens]
+
+    def remove_duplicated(self, tokens: list):
+        tokens.extend([0, 1])
+        return [a for a, b, c in zip(tokens[:-2], tokens[1:-1], tokens[2:]) if not (a == b == c)]
+
+
+class EnPreparation(DataPreparation):
+    def __init__(
+            self,
+            stopwords: bool = True,
+            char_limit: int = 10,
+            number_limit: int = -1,
+            stem: bool = False,
+            lemma: bool = False
+        ):
+        super().__init__(stopwords, char_limit, number_limit)
+        self._setup()
+        self.stopwords = self._get_stopwords()
+        self.config = {'stem': stem, 'lemma': lemma}
+
+    def _setup(self):
+        requirements = ['punkt', 'stopwords', 'wordnet']
+        [nltk.download(r, quiet=True) for r in requirements]
+
+    def _get_stopwords(self):
+        return set(stopwords.words('english'))
+
+    def auto(self, text: str):
+        out = super().auto(text, string=False)
+        out = self.stemming(out) if self.config['stem'] else out
+        out = self.lemmatization(out) if self.config['lemma'] else out
+        return ' '.join(out)
+
+
+class VnPreparation(DataPreparation):
+    def __init__(
+            self,
+            tokenize: bool = True,
+            stopwords: bool = True,
+            accents: bool = True,
+            char_limit: int = 10,
+            number_limit: int = -1
+        ):
+        super().__init__(stopwords, char_limit, number_limit)
+        self.stopwords = self._get_stopwords()
+        self.config = {'tokenize': tokenize, 'accents': accents}
+
+    def _get_stopwords(self):
+        url = "https://raw.githubusercontent.com/stopwords/vietnamese-stopwords/master/vietnamese-stopwords.txt"
+        responds = requests.get(url)
+        stopwords = responds.text.split('\n')
+        return set(stopwords)
+
+    def remove_non_ascii(self, text: str):
+        return re.sub(r'ˋ', '', text)
+
+    def text_normalize(self, text: str):
+        text = uts.text_normalize(text)
+        return text.lower().strip()
+
+    def tokenize(self, text: str):
+        return uts.word_tokenize(text)
+
+    def auto(self, text: str):
+        out = super().auto(text, string=False)
+        out = self.remove_accents(out) if not self.config['accents'] else out
+        out = self.format_words(out) if self.config['tokenize'] else out
+        return ' '.join(out)
 
 
 class DataPreprocessing():
@@ -265,7 +297,7 @@ class CustomDataModule(LightningDataModule):
     @property
     def vocab_size(self):
         if not hasattr(self.preprocess, "vocab"):
-            corpus = self.dataset['text'].tolist()
+            corpus = self.dataset['text'].values
             self.preprocess.vocab = self.preprocess.build_vocabulary(corpus, **self.preprocess.vocab_conf)
         return len(self.preprocess.vocab)
 
@@ -285,15 +317,15 @@ class CustomDataModule(LightningDataModule):
             self._download_data(data_path, url)
         return pd.read_csv(data_path).dropna()
 
-    def _label_encoding(self, labels):
-        encoder = OneHotEncoder()
-        return encoder.fit_transform(labels).toarray()
+    def _label_encode(self, labels):
+        encoder = lambda x: 0 if x == 'NEG' else 1
+        return [encoder(x) for x in labels]
 
     def prepare_data(self):
-        raw_corpus = self.dataset['text'].array
-        raw_labels = self.dataset['label'].array.reshape(-1, 1)
+        raw_corpus = self.dataset['text'].values
+        raw_labels = self.dataset['label'].values
         self.corpus = self.preprocess(raw_corpus)
-        self.labels = self._label_encoding(raw_labels)
+        self.labels = self._label_encode(raw_labels)
 
     def setup(self, stage: str):
         if not (self.data_train and self.data_val and self.data_test):
@@ -348,15 +380,15 @@ class VietDataModule(CustomDataModule):
         kwargs = locals().copy()
         [ kwargs.pop(x) for x in ['self', '__class__'] ]
         super().__init__(
-            data_path='datasets/viet_full.csv',
+            data_path='datasets/train/dataset_t1s1a1.csv',
             url='https://raw.githubusercontent.com/HT0710/Sentiment-Analysis/data/vn/viet_full.csv',
             **kwargs
         )
 
     @property
     def classes(self):
-        return ['Negative', 'Neutral', 'Positive']
+        return ['Negative', 'Positive']
 
     @property
     def num_classes(self):
-        return 3
+        return 2
