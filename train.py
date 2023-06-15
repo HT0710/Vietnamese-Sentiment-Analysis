@@ -21,11 +21,15 @@ def main(config):
 
     # Dataset
     config['data']['num_workers'] = os.cpu_count() if torch.cuda.is_available() else 0
-    dataset = data.IMDBDataModule(preprocessing=preprocesser, **config['data'])
+    dataset = data.CustomDataModule(
+        data_path="datasets/dataset_t1s1a1.csv",
+        preprocessing=preprocesser,
+        **config['data']
+    )
 
     # Model
     config['model']['vocab_size'] = dataset.vocab_size
-    model = models.RNNParallel(**config['model'])
+    model = models.GRU(**config['model'])
     model.save_hparams(config)
 
     # Trainer
