@@ -20,7 +20,7 @@ class LitModel(LightningModule):
 
     def training_step(self, batch, batch_idx):
         X, y = batch
-        y_hat = self(X)
+        y_hat = self(X).squeeze(1)
         loss = self.criterion(y_hat, y)
         acc = accuracy(y_hat, y, task='binary')
         f1 = f1_score(y_hat, y, task='binary')
@@ -32,7 +32,7 @@ class LitModel(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         X, y = batch
-        y_hat = self(X)
+        y_hat = self(X).squeeze(1)
         loss = self.criterion(y_hat, y)
         acc = accuracy(y_hat, y, task='binary')
         f1 = f1_score(y_hat, y, task='binary')
@@ -40,7 +40,7 @@ class LitModel(LightningModule):
 
     def test_step(self, batch, batch_idx):
         X, y = batch
-        y_hat = self(X)
+        y_hat = self(X).squeeze(1)
         loss = self.criterion(y_hat, y)
         acc = accuracy(y_hat, y, task='binary')
         f1 = f1_score(y_hat, y, task='binary')

@@ -1,5 +1,5 @@
 preprocess:
-  seq_length: 50
+  seq_length: 100
   min_freq: 1
   max_freq: 1.0
 
@@ -11,9 +11,9 @@ data:
 
 model:
   vocab_size: null
-  output_size: 3
-  embedding_size: 300
-  hidden_size: 512
+  output_size: 1
+  embedding_size: 128
+  hidden_size: 256
 
 trainer:
   learning_rate: 0.001

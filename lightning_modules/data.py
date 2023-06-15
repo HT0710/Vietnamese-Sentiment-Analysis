@@ -1,4 +1,4 @@
-import os, re, requests
+import re, requests
 from typing import Tuple, Optional, Any
 from collections import Counter
 
@@ -14,7 +14,6 @@ import underthesea as uts
 from pyvi import ViUtils
 
 import pandas as pd
-from rich.progress import track
 from rich import print
 
 
@@ -266,7 +265,6 @@ class CustomDataModule(LightningDataModule):
     def __init__(
             self,
             data_path: str,
-            url: str = None,
             preprocessing: Any = DataPreprocessing(),
             train_val_test_split: Tuple = (0.75, 0.1, 0.15),
             batch_size: int = 32,
@@ -274,7 +272,7 @@ class CustomDataModule(LightningDataModule):
             pin_memory: bool = True,
         ):
         super().__init__()
-        self.dataset = self._load_data(data_path, url)
+        self.dataset = pd.read_csv(data_path).dropna()
         self.preprocess = preprocessing
         self.split_size = train_val_test_split
         self.data_train: Optional[Dataset] = None
@@ -288,11 +286,11 @@ class CustomDataModule(LightningDataModule):
 
     @property
     def classes(self):
-        raise NotImplementedError("Value is still not implemented in this subclass.")
+        return ['Negative', 'Positive']
 
     @property
     def num_classes(self):
-        raise NotImplementedError("Value is still not implemented in this subclass.")
+        return 2
 
     @property
     def vocab_size(self):
@@ -300,22 +298,6 @@ class CustomDataModule(LightningDataModule):
             corpus = self.dataset['text'].values
             self.preprocess.vocab = self.preprocess.build_vocabulary(corpus, **self.preprocess.vocab_conf)
         return len(self.preprocess.vocab)
-
-    def _download_data(self, data_path: str, url: str):
-        if url is None:
-            raise NotImplementedError("URL was not set when trying to download.")
-        with requests.get(url, stream=True) as response:
-            response.raise_for_status()
-            os.mkdir('datasets') if not os.path.exists('datasets') else None
-            with open(data_path, "wb") as file:
-                for chunk in track(response.iter_content(chunk_size=4096), 'Downloading'):
-                    file.write(chunk)
-
-    def _load_data(self, data_path: str, url: str=None):
-        if not os.path.exists(data_path):
-            print(f"Dataset not found. Download to [bold][green]{data_path}[/][/]")
-            self._download_data(data_path, url)
-        return pd.read_csv(data_path).dropna()
 
     def _label_encode(self, labels):
         encoder = lambda x: 0 if x == 'NEG' else 1
@@ -340,55 +322,3 @@ class CustomDataModule(LightningDataModule):
 
     def test_dataloader(self):
         return DataLoader(dataset=self.data_test, **self.dl_conf, shuffle=False)
-
-
-class IMDBDataModule(CustomDataModule):
-    def __init__(
-            self,
-            preprocessing: Any = DataPreprocessing(),
-            train_val_test_split: Tuple = (0.75, 0.1, 0.15),
-            batch_size: int = 32,
-            num_workers: int = 0,
-            pin_memory: bool = True,
-    ):
-        kwargs = locals().copy()
-        [ kwargs.pop(x) for x in ['self', '__class__'] ]
-        super().__init__(
-            data_path='datasets/IMDB.csv',
-            url='https://raw.githubusercontent.com/HT0710/Sentiment-Analysis/data/en/IMDB.csv',
-            **kwargs
-        )
-
-    @property
-    def classes(self):
-        return ['Negative', 'Positive']
-
-    @property
-    def num_classes(self):
-        return 2
-
-
-class VietDataModule(CustomDataModule):
-    def __init__(
-            self,
-            preprocessing: Any = DataPreprocessing(),
-            train_val_test_split: Tuple = (0.75, 0.1, 0.15),
-            batch_size: int = 32,
-            num_workers: int = 0,
-            pin_memory: bool = True,
-    ):
-        kwargs = locals().copy()
-        [ kwargs.pop(x) for x in ['self', '__class__'] ]
-        super().__init__(
-            data_path='datasets/train/dataset_t1s1a1.csv',
-            url='https://raw.githubusercontent.com/HT0710/Sentiment-Analysis/data/vn/viet_full.csv',
-            **kwargs
-        )
-
-    @property
-    def classes(self):
-        return ['Negative', 'Positive']
-
-    @property
-    def num_classes(self):
-        return 2
