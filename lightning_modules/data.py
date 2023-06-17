@@ -1,6 +1,5 @@
-import os, re
-import requests
-from typing import Tuple, Optional, Any
+import re, requests
+from typing import Tuple, Any
 from collections import Counter
 
 import torch
@@ -13,64 +12,26 @@ from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.corpus import stopwords
 import underthesea as uts
 from pyvi import ViUtils
-from rich.progress import track
-from rich import print
+
 import pandas as pd
+from rich import print
 
 
 class DataPreparation():
     """Data Preparation"""
 
-    def __init__(
-            self,
-            lang: str = 'en',
-            stopword: bool = False,
-            stem: bool = False,
-            lemma: bool = False,
-            accents: bool = True
-        ):
-        self.lang = self._check_language(lang)
-        self.stemmer = PorterStemmer() if stem else None
-        self.lemmatizer = WordNetLemmatizer() if lemma else None
-        self.stopwords = self.get_stopwords() if stopword else None
-        self.accents = accents
-
-    def _check_language(self, lang: str):
-        lang = lang.strip().lower()
-        if lang not in ['en', 'vn']:
-            raise ValueError("Only 'en' or 'vn' are supported.")
-        return lang
-
-    def get_stopwords(self):
-        if self.lang == 'en':
-            nltk.download('stopwords', quiet=True)
-            stopword_list = stopwords.words('english')
-        if self.lang == 'vn':
-            url = 'https://raw.githubusercontent.com/stopwords/vietnamese-stopwords/master/vietnamese-stopwords.txt'
-            responds = requests.get(url)
-            stopword_list = responds.text.split('\n')
-        return set(stopword_list)
+    def __init__(self, stopwords: bool=True, char_limit: int=10, number_limit: int=-1):
+        self.stemmer = PorterStemmer()
+        self.lemmatizer = WordNetLemmatizer()
+        self.stopwords = []
+        self._config = {
+            'stopwords': stopwords,
+            'number_limit': number_limit,
+            'char_limit': char_limit
+        }
 
     def __call__(self, text: str):
         return self.auto(text)
-
-    def auto(self, text: str):
-        out = self.remove_link(text)
-        out = self.remove_html(out)
-        out = self.remove_punctuation(out)
-        out = self.format_numbers(out, max=100)
-        out = self.remove_non_ascii(out)
-        out = self.remove_emoji(out)
-        out = self.remove_repeated(out)
-        out = self.text_normalize(out)
-        out = self.remove_accents(out)
-        out = self.tokenize(out)
-        out = self.remove_stopwords(out)
-        if self.lang == "en" and (self.stemmer or self.lemmatizer):
-            nltk.download('wordnet', quiet=True)
-            out = self.stemming(out) if self.stemmer else out
-            out = self.lemmatization(out) if self.lemmatizer else out
-        return ' '.join(out)
 
     def remove_link(self, text: str):
         pattern = r'https?://\S+|www\.\S+'
@@ -82,15 +43,8 @@ class DataPreparation():
     def remove_punctuation(self, text: str):
         return re.sub(r'[^\w\s]', ' ', text)
 
-    def format_numbers(self, text: str, max: int=100):
-        check_num = lambda x: '<num>' if (int(x.group(0)) > max) else x.group(0)
-        return re.sub(r'\d+', check_num, text)
-
     def remove_non_ascii(self, text: str):
-        if self.lang == 'en':
-            return re.sub(r'[^\x00-\x7f]', ' ', text)
-        if self.lang == 'vn':
-            return re.sub(r'ˋ', '', text)
+        return re.sub(r'[^\x00-\x7f]', ' ', text)
 
     def remove_emoji(self, text: str):
         emojis = re.compile(
@@ -111,27 +65,134 @@ class DataPreparation():
         return re.sub(r'(.)\1+', r'\1\1', text)
 
     def text_normalize(self, text: str):
-        text = uts.text_normalize(text) if self.lang == 'vn' else text
-        return text.lower()
-
-    def remove_accents(self, text: str):
-        return ViUtils.remove_accents(text) if (not self.accents and self.lang == 'vn') else text
+        return text.lower().strip()
 
     def tokenize(self, text: str):
-        if self.lang == 'en':
-            nltk.download('punkt', quiet=True)
-            return nltk.word_tokenize(text)
-        if self.lang == 'vn':
-            return uts.word_tokenize(text, fixed_words=['<num>'])
+        return nltk.word_tokenize(text)
 
     def remove_stopwords(self, tokens: list):
-        return [word for word in tokens if word not in self.stopwords] if self.stopwords else tokens
+        return [word for word in tokens if word not in self.stopwords]
+
+    def remove_incorrect(self, tokens: list, min_length: int=0, max_length: int=10):
+        check = lambda x: True if (min_length <= len(x) <= max_length) else (' ' in x)
+        return [word for word in tokens if check(word)]
+
+    def format_numbers(self, tokens: list, max: int=100):
+        """Replace number with token '<num>' if it is greater than max
+        Example: if max=5 then ["2", "abc", "125", "69"] -> ["2", "abc", "<num>", "<num>"]
+        """
+        def check_number(x: str):
+            if not x.isdigit():
+                return x
+            return '<num>' if int(x) > max else x
+        return [check_number(word) for word in tokens]
+
+    def remove_duplicated(self, tokens: list):
+        """Remove duplicated words
+        Words appear consecutively more than 2 times
+        Example: 1 22 333 4444 -> 1 22 33 44
+        """
+        tokens.extend([0, 1])
+        return [a for a, b, c in zip(tokens[:-2], tokens[1:-1], tokens[2:]) if not (a == b == c)]
 
     def stemming(self, tokens: list):
+        """Apply stemming algorithm"""
         return [self.stemmer.stem(word) for word in tokens]
 
     def lemmatization(self, tokens: list):
+        """Apply lemmatization algorithm"""
         return [self.lemmatizer.lemmatize(word) for word in tokens]
+
+    def remove_accents(self, tokens: list):
+        """Remove words accents for Vietnamese dataset
+        Example: hôm nay trời đẹp -> hom nay troi dep
+        """
+        return [str(ViUtils.remove_accents(word), "UTF-8") for word in tokens]
+
+    def format_words(self, tokens: list):
+        """Connect tokenized words for Vietnamese dataset
+        Example: ["hôm nay", "Hồ Chí Minh", "trời", "đẹp"] -> ["hôm_nay", "Hồ_Chí_Minh", "trời", "đẹp"]
+        """
+        return [word.replace(' ', '_') for word in tokens]
+
+    def auto(self, text: str, string: bool=True) -> str|list:
+        out = self.remove_link(text)
+        out = self.remove_html(out)
+        out = self.remove_punctuation(out)
+        out = self.remove_non_ascii(out)
+        out = self.remove_emoji(out)
+        out = self.remove_repeated(out)
+        out = self.text_normalize(out)
+        out = self.tokenize(out)
+        out = self.remove_stopwords(out) if not self._config['stopwords'] else out
+        out = self.remove_incorrect(out, min_length=0, max_length=self._config['char_limit'])
+        out = self.format_numbers(out, max=self._config['number_limit'])
+        out = self.remove_duplicated(out)
+        return ' '.join(out) if string else out
+
+
+class EnPreparation(DataPreparation):
+    def __init__(
+            self,
+            stopwords: bool = True,
+            char_limit: int = 10,
+            number_limit: int = -1,
+            stem: bool = False,
+            lemma: bool = False
+        ):
+        super().__init__(stopwords, char_limit, number_limit)
+        self._setup()
+        self.stopwords = self._get_stopwords()
+        self.config = {'stem': stem, 'lemma': lemma}
+
+    def _setup(self):
+        requirements = ['punkt', 'stopwords', 'wordnet']
+        [nltk.download(r, quiet=True) for r in requirements]
+
+    def _get_stopwords(self):
+        return set(stopwords.words('english'))
+
+    def auto(self, text: str):
+        out = super().auto(text, string=False)
+        out = self.stemming(out) if self.config['stem'] else out
+        out = self.lemmatization(out) if self.config['lemma'] else out
+        return ' '.join(out)
+
+
+class VnPreparation(DataPreparation):
+    def __init__(
+            self,
+            tokenize: bool = True,
+            stopwords: bool = True,
+            accents: bool = True,
+            char_limit: int = 10,
+            number_limit: int = -1
+        ):
+        super().__init__(stopwords, char_limit, number_limit)
+        self.stopwords = self._get_stopwords()
+        self.config = {'tokenize': tokenize, 'accents': accents}
+
+    def _get_stopwords(self):
+        url = "https://raw.githubusercontent.com/stopwords/vietnamese-stopwords/master/vietnamese-stopwords.txt"
+        responds = requests.get(url)
+        stopwords = responds.text.split('\n')
+        return set(stopwords)
+
+    def remove_non_ascii(self, text: str):
+        return re.sub(r'ˋ', '', text)
+
+    def text_normalize(self, text: str):
+        text = uts.text_normalize(text)
+        return text.lower().strip()
+
+    def tokenize(self, text: str):
+        return uts.word_tokenize(text)
+
+    def auto(self, text: str):
+        out = super().auto(text, string=False)
+        out = self.remove_accents(out) if not self.config['accents'] else out
+        out = self.format_words(out) if self.config['tokenize'] else out
+        return ' '.join(out)
 
 
 class DataPreprocessing():
@@ -139,13 +200,11 @@ class DataPreprocessing():
 
     def __init__(
             self,
-            vocab: list = None,
             seq_length: int = 128,
             min_freq: int|float = 1,
             max_freq: int|float = 1.,
         ):
         """Data preprocessing"""
-        self.vocab = vocab
         self.seq_length = seq_length
         self.vocab_conf = {
             'min_freq': min_freq,
@@ -159,7 +218,7 @@ class DataPreprocessing():
     def auto(self, corpus: list[str]):
         """Auto pass through all step"""
         print("[bold]Preprocessing:[/] Building vocabulary...", end='\r')
-        vocab = self.build_vocabulary(corpus, **self.vocab_conf) if not self.vocab else self.vocab
+        vocab = self.build_vocabulary(corpus, **self.vocab_conf)
         print("[bold]Preprocessing:[/] Converting word2int...", end='\r')
         encoded = self.word2int(corpus, vocab)
         print("[bold]Preprocessing:[/] Truncating...         ", end='\r')
@@ -186,8 +245,8 @@ class DataPreprocessing():
 
     def word2int(self, corpus: list[str], vocab: dict):
         """Convert words to integer base on vocab"""
-        encoder = lambda token: vocab[token] if token in vocab else self.vocab['<unk>']
-        return [[encoder(token) for token in seq.split()] for seq in corpus]
+        convert = lambda token: vocab[token] if token in vocab else self.vocab['<unk>']
+        return [[convert(token) for token in seq.split()] for seq in corpus]
 
     def truncate_sequences(self, corpus: list[str], seq_length=128):
         """Truncate the sequences"""
@@ -212,30 +271,23 @@ class DataModule(Dataset):
     def __getitem__(self, idx):
         text = self.corpus[idx]
         label = self.labels[idx]
-        text_tensor = torch.as_tensor(text, dtype=torch.long)
-        label_tensor = torch.as_tensor(label, dtype=torch.float).unsqueeze(0)
-        return text_tensor, label_tensor
+        return text, label
 
 
-class IMDBDataModule(LightningDataModule):
-    """IMDB Lightning Data Module"""
-
+class CustomDataModule(LightningDataModule):
     def __init__(
             self,
+            data_path: str,
             preprocessing: Any = DataPreprocessing(),
             train_val_test_split: Tuple = (0.75, 0.1, 0.15),
             batch_size: int = 32,
             num_workers: int = 0,
             pin_memory: bool = True,
-    ):
+        ):
         super().__init__()
-        self.data_path = 'datasets/IMDB.csv'
-        self.dataset = self._load_data()
-        self.preprocesser = preprocessing
+        self.dataset = pd.read_csv(data_path).dropna()
+        self.preprocess = preprocessing
         self.split_size = train_val_test_split
-        self.data_train: Optional[Dataset] = None
-        self.data_val: Optional[Dataset] = None
-        self.data_test: Optional[Dataset] = None
         self.dl_conf = {
             "batch_size": batch_size,
             "num_workers": num_workers,
@@ -243,37 +295,34 @@ class IMDBDataModule(LightningDataModule):
         }
 
     @property
+    def classes(self):
+        return set(self.dataset['label'])
+
+    @property
     def num_classes(self):
-        return 2
+        return len(self.classes)
 
     @property
     def vocab_size(self):
-        vocab = self.preprocesser.vocab
-        if not vocab:
-            corpus = self.dataset['text'].tolist()
-            vocab = self.preprocesser.build_vocabulary(corpus, **self.preprocesser.vocab_conf)
-        return len(vocab)
+        if not hasattr(self.preprocess, "vocab"):
+            corpus = self.dataset['text'].values
+            self.preprocess.vocab = self.preprocess.build_vocabulary(corpus, **self.preprocess.vocab_conf)
+        return len(self.preprocess.vocab)
 
-    def _download_data(self):
-        url = 'https://raw.githubusercontent.com/HT0710/Sentiment-Analysis/data/en/IMDB.csv'
-        with requests.get(url, stream=True) as response:
-            response.raise_for_status()
-            os.mkdir('datasets') if not os.path.exists('datasets') else None
-            with open(self.data_path, "wb") as file:
-                for chunk in track(response.iter_content(chunk_size=4096), 'Download the dataset'):
-                    file.write(chunk)
-
-    def _load_data(self):
-        self._download_data() if not os.path.exists(self.data_path) else None
-        return pd.read_csv(self.data_path).dropna()
+    def _label_encode(self, labels):
+        distinct = {key: index for index, key in enumerate(sorted(set(labels)))}
+        tensor_labels = torch.as_tensor([distinct[x] for x in labels], dtype=torch.float)
+        return tensor_labels.unsqueeze(1)
 
     def prepare_data(self):
-        raw_corpus = self.dataset['text'].tolist()
-        self.corpus = self.preprocesser(raw_corpus)
-        self.labels = self.dataset['label'].tolist()
+        if not hasattr(self, "corpus"):
+            raw_corpus = self.dataset['text'].values
+            raw_labels = self.dataset['label'].values
+            self.corpus = self.preprocess(raw_corpus)
+            self.labels = self._label_encode(raw_labels)
 
     def setup(self, stage: str):
-        if not (self.data_train and self.data_val and self.data_test):
+        if not hasattr(self, "data_train"):
             dataset = DataModule(self.corpus, self.labels)
             self.data_train, self.data_val, self.data_test = random_split(dataset=dataset, lengths=self.split_size)
 

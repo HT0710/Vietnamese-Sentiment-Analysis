@@ -1,32 +1,33 @@
-import os
 from argparse import ArgumentParser
-import yaml
-
-from models import GRU, MultiRNN, CRNNParallel
-from lightning_modules.data import DataPreprocessing, IMDBDataModule
-from lightning_modules import callbacks_list
+import os, yaml
 
 from lightning.pytorch import Trainer, seed_everything
+from lightning_modules import callbacks_list
+import lightning_modules.data as data
+import models
+import torch
+
 from rich.traceback import install
 install()
 
 
-def main(config):
-    # Set seed
-    seed_everything(seed=42, workers=True)
+# Set seed
+seed_everything(seed=42, workers=True)
 
+
+def main(config):
     # Preprocessing
-    config['preprocess']['vocab'] = None  # change if use custom vocab
-    preprocesser = DataPreprocessing(**config["preprocess"])
+    preprocesser = data.DataPreprocessing(**config["preprocess"])
 
     # Dataset
-    config['data']['num_workers'] = os.cpu_count()
-    dataset = IMDBDataModule(preprocessing=preprocesser, **config['data'])
+    config['data']['num_workers'] = os.cpu_count() if torch.cuda.is_available() else 0
+    dataset = data.CustomDataModule(preprocessing=preprocesser, **config['data'])
 
     # Model
     config['model']['vocab_size'] = dataset.vocab_size
-    model = GRU(**config['model'])
+    model = models.BiGRU(**config['model'])
     model.save_hparams(config)
+    model.load(config['trainer']['checkpoint'])
 
     # Trainer
     trainer = Trainer(
@@ -34,6 +35,7 @@ def main(config):
         callbacks=callbacks_list(config['callback'])
     )
 
+    # Training
     trainer.fit(model, dataset)
 
     trainer.test(model, dataset)
@@ -44,6 +46,7 @@ if __name__=="__main__":
     parser.add_argument("-e", "--epoch", type=int, default=None)
     parser.add_argument("-b", "--batch", type=int, default=None)
     parser.add_argument("-lr", "--learning_rate", type=float, default=None)
+    parser.add_argument("-cp", "--checkpoint", type=str, default=None)
     args = parser.parse_args()
 
     with open('config.yaml', 'r') as file:
@@ -55,5 +58,7 @@ if __name__=="__main__":
         config['data']['batch_size'] = args.batch
     if args.learning_rate is not None:
         config['trainer']['learning_rate'] = args.learning_rate
+    if args.checkpoint is not None:
+        config['trainer']['checkpoint'] = args.checkpoint
 
     main(config)

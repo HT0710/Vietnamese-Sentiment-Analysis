@@ -1,11 +1,11 @@
 preprocess:
-  vocab: null
-  seq_length: 300
+  seq_length: 100
   min_freq: 2
-  max_freq: 0.9
+  max_freq: 0.5
 
 data:
-  train_val_test_split: !!python/tuple [0.75,  0.15, 0.1]
+  data_path: datasets/dataset_t1s1a1.csv
+  train_val_test_split: !!python/tuple [0.7,  0.15, 0.15]
   batch_size: 128
   num_workers: 0
   pin_memory: true
@@ -13,19 +13,19 @@ data:
 model:
   vocab_size: null
   output_size: 1
-  embedding_size: 300
-  hidden_size: 512
+  embedding_size: 128
+  hidden_size: 256
 
 trainer:
-  learning_rate: 0.001
-  num_epochs: 10
+  learning_rate: 0.0005
+  num_epochs: 20
+  checkpoint: null
 
 callback:
   checkpoint:
     enable: true
     dirpath: null
-    filename: null
-    weights_only: true
+    save_top_k: 2
   earlystopping:
     enable: true
     patience: 3
