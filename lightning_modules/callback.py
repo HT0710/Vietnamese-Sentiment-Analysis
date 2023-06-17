@@ -31,9 +31,9 @@ def callbacks_list(config):
     cb_list.append(
         cb.ModelCheckpoint(
             monitor='val/loss',
+            save_weights_only=True,
             dirpath=config['checkpoint']['dirpath'],
-            filename=config['checkpoint']['filename'],
-            save_weights_only=config['checkpoint']['weights_only']
+            save_top_k=config['checkpoint']['save_top_k'],
         )
     ) if config['checkpoint']['enable'] else None
 

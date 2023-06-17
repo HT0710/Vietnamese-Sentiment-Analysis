@@ -15,7 +15,7 @@ NUM_WOKER = os.cpu_count() if DEVICE == 'cuda' else 0
 CLASSES = ['Negative', 'Possitive']
 
 config_path = "lightning_logs/version_0/hparams.yaml"
-model_path = "lightning_logs/version_0/checkpoints/epoch=2-step=1101.ckpt"
+model_path = "lightning_logs/version_0/checkpoints/epoch=6-step=2352.ckpt"
 
 
 def main(args):
@@ -29,26 +29,22 @@ def main(args):
     print("Starting../", end="\r")
     # Dataset
     config['data']['num_workers'] = NUM_WOKER
-    dataset = data.CustomDataModule(
-        data_path="datasets/dataset_t1s1a1.csv",
-        preprocessing=preprocess,
-        **config['data']
-    )
+    dataset = data.CustomDataModule(preprocessing=preprocess, **config['data'])
     print("Starting..-", end="\r")
 
     # Model
     config['model']['vocab_size'] = dataset.vocab_size
-    model = models.GRU(**config['model'])
+    model = models.BiGRU(**config['model'])
     print("Starting../", end="\r")
 
-    model.continue_from(model_path)
+    model.load(model_path)
     model.to(DEVICE)
     model.eval()
     print("Starting..-", end="\r")
 
     # Prepare data
     prepare = data.VnPreparation(char_limit=7)
-    print("Started.   ")
+    print("[bold]Started.[/]   ")
 
     while True:
         if not args.prompt:

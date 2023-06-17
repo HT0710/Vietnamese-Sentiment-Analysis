@@ -2,8 +2,10 @@ from torchmetrics.functional import accuracy, f1_score
 from lightning.pytorch import LightningModule
 import torch.nn.functional as F
 import torch.optim as optim
+from rich import print
 import torch
 import os
+
 
 
 class LitModel(LightningModule):
@@ -20,7 +22,7 @@ class LitModel(LightningModule):
 
     def training_step(self, batch, batch_idx):
         X, y = batch
-        y_hat = self(X).squeeze(1)
+        y_hat = self(X)
         loss = self.criterion(y_hat, y)
         acc = accuracy(y_hat, y, task='binary')
         f1 = f1_score(y_hat, y, task='binary')
@@ -32,7 +34,7 @@ class LitModel(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         X, y = batch
-        y_hat = self(X).squeeze(1)
+        y_hat = self(X)
         loss = self.criterion(y_hat, y)
         acc = accuracy(y_hat, y, task='binary')
         f1 = f1_score(y_hat, y, task='binary')
@@ -40,7 +42,7 @@ class LitModel(LightningModule):
 
     def test_step(self, batch, batch_idx):
         X, y = batch
-        y_hat = self(X).squeeze(1)
+        y_hat = self(X)
         loss = self.criterion(y_hat, y)
         acc = accuracy(y_hat, y, task='binary')
         f1 = f1_score(y_hat, y, task='binary')
@@ -51,9 +53,12 @@ class LitModel(LightningModule):
         self.hparams.update(config)
         self.save_hyperparameters()
 
-    def continue_from(self, path: str):
+    def load(self, path: str):
+        if not path:
+            return
         if not os.path.exists(path):
             raise FileNotFoundError(path)
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         checkpoint_state_dict = torch.load(path, map_location=device)['state_dict']
         self.load_state_dict(checkpoint_state_dict)
+        print("[bold]Load checkpoint successfully.[/]")

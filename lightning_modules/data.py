@@ -1,5 +1,5 @@
 import re, requests
-from typing import Tuple, Optional, Any
+from typing import Tuple, Any
 from collections import Counter
 
 import torch
@@ -32,21 +32,6 @@ class DataPreparation():
 
     def __call__(self, text: str):
         return self.auto(text)
-
-    def auto(self, text: str, string: bool=True) -> str|list:
-        out = self.remove_link(text)
-        out = self.remove_html(out)
-        out = self.remove_punctuation(out)
-        out = self.remove_non_ascii(out)
-        out = self.remove_emoji(out)
-        out = self.remove_repeated(out)
-        out = self.text_normalize(out)
-        out = self.tokenize(out)
-        out = self.remove_stopwords(out) if not self._config['stopwords'] else out
-        out = self.remove_incorrect(out, min_length=0, max_length=self._config['char_limit'])
-        out = self.format_numbers(out, max=self._config['number_limit'])
-        out = self.remove_duplicated(out)
-        return ' '.join(out) if string else out
 
     def remove_link(self, text: str):
         pattern = r'https?://\S+|www\.\S+'
@@ -85,13 +70,6 @@ class DataPreparation():
     def tokenize(self, text: str):
         return nltk.word_tokenize(text)
 
-    def format_numbers(self, tokens: list, max: int=100):
-        def check_number(x: str):
-            if not x.isdigit():
-                return x
-            return '<num>' if int(x) > max else x
-        return [check_number(word) for word in tokens]
-
     def remove_stopwords(self, tokens: list):
         return [word for word in tokens if word not in self.stopwords]
 
@@ -99,21 +77,58 @@ class DataPreparation():
         check = lambda x: True if (min_length <= len(x) <= max_length) else (' ' in x)
         return [word for word in tokens if check(word)]
 
-    def remove_accents(self, tokens: list):
-        return [str(ViUtils.remove_accents(word), "UTF-8") for word in tokens]
+    def format_numbers(self, tokens: list, max: int=100):
+        """Replace number with token '<num>' if it is greater than max
+        Example: if max=5 then ["2", "abc", "125", "69"] -> ["2", "abc", "<num>", "<num>"]
+        """
+        def check_number(x: str):
+            if not x.isdigit():
+                return x
+            return '<num>' if int(x) > max else x
+        return [check_number(word) for word in tokens]
 
-    def format_words(self, tokens: list):
-        return [word.replace(' ', '_') for word in tokens]
+    def remove_duplicated(self, tokens: list):
+        """Remove duplicated words
+        Words appear consecutively more than 2 times
+        Example: 1 22 333 4444 -> 1 22 33 44
+        """
+        tokens.extend([0, 1])
+        return [a for a, b, c in zip(tokens[:-2], tokens[1:-1], tokens[2:]) if not (a == b == c)]
 
     def stemming(self, tokens: list):
+        """Apply stemming algorithm"""
         return [self.stemmer.stem(word) for word in tokens]
 
     def lemmatization(self, tokens: list):
+        """Apply lemmatization algorithm"""
         return [self.lemmatizer.lemmatize(word) for word in tokens]
 
-    def remove_duplicated(self, tokens: list):
-        tokens.extend([0, 1])
-        return [a for a, b, c in zip(tokens[:-2], tokens[1:-1], tokens[2:]) if not (a == b == c)]
+    def remove_accents(self, tokens: list):
+        """Remove words accents for Vietnamese dataset
+        Example: hôm nay trời đẹp -> hom nay troi dep
+        """
+        return [str(ViUtils.remove_accents(word), "UTF-8") for word in tokens]
+
+    def format_words(self, tokens: list):
+        """Connect tokenized words for Vietnamese dataset
+        Example: ["hôm nay", "Hồ Chí Minh", "trời", "đẹp"] -> ["hôm_nay", "Hồ_Chí_Minh", "trời", "đẹp"]
+        """
+        return [word.replace(' ', '_') for word in tokens]
+
+    def auto(self, text: str, string: bool=True) -> str|list:
+        out = self.remove_link(text)
+        out = self.remove_html(out)
+        out = self.remove_punctuation(out)
+        out = self.remove_non_ascii(out)
+        out = self.remove_emoji(out)
+        out = self.remove_repeated(out)
+        out = self.text_normalize(out)
+        out = self.tokenize(out)
+        out = self.remove_stopwords(out) if not self._config['stopwords'] else out
+        out = self.remove_incorrect(out, min_length=0, max_length=self._config['char_limit'])
+        out = self.format_numbers(out, max=self._config['number_limit'])
+        out = self.remove_duplicated(out)
+        return ' '.join(out) if string else out
 
 
 class EnPreparation(DataPreparation):
@@ -256,9 +271,7 @@ class DataModule(Dataset):
     def __getitem__(self, idx):
         text = self.corpus[idx]
         label = self.labels[idx]
-        text_tensor = torch.as_tensor(text, dtype=torch.long)
-        label_tensor = torch.as_tensor(label, dtype=torch.float)
-        return text_tensor, label_tensor
+        return text, label
 
 
 class CustomDataModule(LightningDataModule):
@@ -275,9 +288,6 @@ class CustomDataModule(LightningDataModule):
         self.dataset = pd.read_csv(data_path).dropna()
         self.preprocess = preprocessing
         self.split_size = train_val_test_split
-        self.data_train: Optional[Dataset] = None
-        self.data_val: Optional[Dataset] = None
-        self.data_test: Optional[Dataset] = None
         self.dl_conf = {
             "batch_size": batch_size,
             "num_workers": num_workers,
@@ -286,11 +296,11 @@ class CustomDataModule(LightningDataModule):
 
     @property
     def classes(self):
-        return ['Negative', 'Positive']
+        return set(self.dataset['label'])
 
     @property
     def num_classes(self):
-        return 2
+        return len(self.classes)
 
     @property
     def vocab_size(self):
@@ -300,17 +310,19 @@ class CustomDataModule(LightningDataModule):
         return len(self.preprocess.vocab)
 
     def _label_encode(self, labels):
-        encoder = lambda x: 0 if x == 'NEG' else 1
-        return [encoder(x) for x in labels]
+        distinct = {key: index for index, key in enumerate(sorted(set(labels)))}
+        tensor_labels = torch.as_tensor([distinct[x] for x in labels], dtype=torch.float)
+        return tensor_labels.unsqueeze(1)
 
     def prepare_data(self):
-        raw_corpus = self.dataset['text'].values
-        raw_labels = self.dataset['label'].values
-        self.corpus = self.preprocess(raw_corpus)
-        self.labels = self._label_encode(raw_labels)
+        if not hasattr(self, "corpus"):
+            raw_corpus = self.dataset['text'].values
+            raw_labels = self.dataset['label'].values
+            self.corpus = self.preprocess(raw_corpus)
+            self.labels = self._label_encode(raw_labels)
 
     def setup(self, stage: str):
-        if not (self.data_train and self.data_val and self.data_test):
+        if not hasattr(self, "data_train"):
             dataset = DataModule(self.corpus, self.labels)
             self.data_train, self.data_val, self.data_test = random_split(dataset=dataset, lengths=self.split_size)
 
