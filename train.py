@@ -51,6 +51,7 @@ if __name__=="__main__":
 
     with open('config.yaml', 'r') as file:
         config = yaml.full_load(file)
+        config = config['train']
 
     if args.epoch is not None:
         config['trainer']['num_epochs'] = args.epoch

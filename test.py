@@ -5,21 +5,28 @@ import lightning_modules.data as data
 import models
 import torch
 
-from rich.traceback import install
 from rich import print
+from rich.prompt import Prompt
+from rich.traceback import install
 install()
 
 
 DEVICE = 'cpu' if torch.cuda.is_available() else 'cpu'
 NUM_WOKER = os.cpu_count() if DEVICE == 'cuda' else 0
-CLASSES = ['Negative', 'Possitive']
 
-config_path = "lightning_logs/version_0/hparams.yaml"
-model_path = "lightning_logs/version_0/checkpoints/epoch=5-step=1644.ckpt"
+result_format = {
+    "NEG": "[red]Negative[/]",
+    "NEU": "[yellow]Neutral[/]",
+    "POS": "[green]Positive[/]",
+}
 
 
 def main(args):
     print("Starting...", end="\r")
+
+    # Load config
+    model_path = args.config['test']['model_path']
+    config_path = args.config['test']['config_path']
     with open(config_path, 'r') as file:
         config = yaml.full_load(file)
 
@@ -43,13 +50,11 @@ def main(args):
     print("[bold]Started.[/]   ")
 
     while True:
-        if  args.prompt:
-            text = args.prompt
-        else:
-            print("\n[bold]Enter prompt:[/]", end=" ")
-            text = input()
+        text = args.prompt if args.prompt else Prompt.ask("\n[bold]Enter prompt[/]")
 
         text = prepare(text)
+
+        result = {"score": 0, "value": None}
 
         if text:
             text = preprocess.word2int(corpus=[text], vocab=preprocess.vocab)
@@ -59,20 +64,22 @@ def main(args):
             with torch.inference_mode():
                 output = model(tensor).item()
 
-            if 0.45 < output < 0.55:
-                print(f"[bold]Score:[/] {output:.2f} -> [bold][yellow]Neutral[/][/]")
-            else:
-                result = CLASSES[round(output)]
-                check = lambda x: f"[red]{x}[/]" if x == 'Negative' else f"[green]{x}[/]" 
-                print(f"[bold]Score:[/] {output:.2f} -> [bold]{check(result)}[/]")
+            result = {
+                "score": output,
+                "value": "NEU" if (0.4 < output < 0.6) else dataset.classes[round(output)]
+            }
 
-        else:
-            print("[bold]Score:[/] 0 -> [bold]Unidentified[/]")
+        print(f"[bold]Score:[/] {round(result['score'], 2)} -> [bold]{result_format.get(result['value'], 'Unidentified')}[/]")
 
         exit() if args.prompt else None
+
 
 if __name__=="__main__":
     parser = ArgumentParser()
     parser.add_argument("-p", "--prompt", type=str, default=None)
     args = parser.parse_args()
+
+    with open('config.yaml', 'r') as file:
+        args.config = yaml.full_load(file)
+
     main(args)

@@ -296,7 +296,7 @@ class CustomDataModule(LightningDataModule):
 
     @property
     def classes(self):
-        return set(self.dataset['label'])
+        return sorted(set(self.dataset['label']))
 
     @property
     def num_classes(self):
@@ -310,7 +310,7 @@ class CustomDataModule(LightningDataModule):
         return len(self.preprocess.vocab)
 
     def _label_encode(self, labels):
-        distinct = {key: index for index, key in enumerate(sorted(set(labels)))}
+        distinct = {key: index for index, key in enumerate(self.classes)}
         tensor_labels = torch.as_tensor([distinct[x] for x in labels], dtype=torch.float)
         return tensor_labels.unsqueeze(1)
 

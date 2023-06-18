@@ -4,3 +4,5 @@
 *.csv
 TODO.md
 lightning_logs
+eval.py
+*.ipynb
