@@ -53,12 +53,12 @@ class LitModel(LightningModule):
         self.hparams.update(config)
         self.save_hyperparameters()
 
-    def load(self, path: str):
+    def load(self, path: str, strict: bool=True, verbose: bool=True):
         if not path:
             return
         if not os.path.exists(path):
             raise FileNotFoundError(path)
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         checkpoint_state_dict = torch.load(path, map_location=device)['state_dict']
-        self.load_state_dict(checkpoint_state_dict)
-        print("[bold]Load checkpoint successfully.[/]")
+        self.load_state_dict(checkpoint_state_dict, strict=strict)
+        print("[bold]Load checkpoint successfully.[/]") if verbose else None

@@ -18,7 +18,7 @@ from rich import print
 
 
 class DataPreparation():
-    """Data Preparation"""
+    """Base class: Data Preparation"""
 
     def __init__(self, stopwords: bool=True, char_limit: int=10, number_limit: int=-1):
         self.stemmer = PorterStemmer()
@@ -34,19 +34,24 @@ class DataPreparation():
         return self.auto(text)
 
     def remove_link(self, text: str):
+        """Remove website link. Example: https://..."""
         pattern = r'https?://\S+|www\.\S+'
         return re.sub(pattern, ' ', text)
 
     def remove_html(self, text: str):
+        """Remove html tag. Example: <abc>...</abc>"""
         return re.sub(r'<[^>]+>', ' ', text)
 
     def remove_punctuation(self, text: str):
+        """Remove punctuation. Exmaple: !"#$%&'()*+,..."""
         return re.sub(r'[^\w\s]', ' ', text)
 
     def remove_non_ascii(self, text: str):
+        """Remove non-ascii charactors"""
         return re.sub(r'[^\x00-\x7f]', ' ', text)
 
     def remove_emoji(self, text: str):
+        """Remove emoji"""
         emojis = re.compile(
             '['
             u'\U0001F600-\U0001F64F'
@@ -60,26 +65,35 @@ class DataPreparation():
         )
         return emojis.sub(' ', text)
 
-    # heeelloo worlddddd -> hello world
     def remove_repeated(self, text: str):
+        """Remove repeated charactor
+        Example: heeelloo worlddddd -> hello world
+        """
         return re.sub(r'(.)\1+', r'\1\1', text)
 
     def text_normalize(self, text: str):
+        """Text normalize. Example: AbCDe -> abcde"""
         return text.lower().strip()
 
     def tokenize(self, text: str):
+        """Word tokenize. Example: hello world -> ["hello", "world"]"""
         return nltk.word_tokenize(text)
 
     def remove_stopwords(self, tokens: list):
+        """Remove stopwords. Example: a, an, the, this, that, ..."""
         return [word for word in tokens if word not in self.stopwords]
 
     def remove_incorrect(self, tokens: list, min_length: int=0, max_length: int=10):
+        """Remove incorrect word.
+        Remove words have length longer than max_length
+        Example: with max_length=3 then ["1", "22", "333", "4444", "55555"] -> ["1", "22", "333"]
+        """
         check = lambda x: True if (min_length <= len(x) <= max_length) else (' ' in x)
         return [word for word in tokens if check(word)]
 
     def format_numbers(self, tokens: list, max: int=100):
         """Replace number with token '<num>' if it is greater than max
-        Example: if max=5 then ["2", "abc", "125", "69"] -> ["2", "abc", "<num>", "<num>"]
+        Example: with max=5 then ["2", "abc", "125", "69"] -> ["2", "abc", "<num>", "<num>"]
         """
         def check_number(x: str):
             if not x.isdigit():
@@ -116,6 +130,9 @@ class DataPreparation():
         return [word.replace(' ', '_') for word in tokens]
 
     def auto(self, text: str, string: bool=True) -> str|list:
+        """Auto apply all of the methods.
+        :Param string: return `str` if `true` else `list`
+        """
         out = self.remove_link(text)
         out = self.remove_html(out)
         out = self.remove_punctuation(out)
@@ -132,6 +149,8 @@ class DataPreparation():
 
 
 class EnPreparation(DataPreparation):
+    """English Data Preparation"""
+
     def __init__(
             self,
             stopwords: bool = True,
@@ -153,6 +172,7 @@ class EnPreparation(DataPreparation):
         return set(stopwords.words('english'))
 
     def auto(self, text: str):
+        """Auto apply for english dataset"""
         out = super().auto(text, string=False)
         out = self.stemming(out) if self.config['stem'] else out
         out = self.lemmatization(out) if self.config['lemma'] else out
@@ -160,6 +180,8 @@ class EnPreparation(DataPreparation):
 
 
 class VnPreparation(DataPreparation):
+    """Vietnamese Data Preparation"""
+
     def __init__(
             self,
             tokenize: bool = True,
@@ -189,6 +211,7 @@ class VnPreparation(DataPreparation):
         return uts.word_tokenize(text)
 
     def auto(self, text: str):
+        """Auto apply for vietnamese dataset"""
         out = super().auto(text, string=False)
         out = self.remove_accents(out) if not self.config['accents'] else out
         out = self.format_words(out) if self.config['tokenize'] else out
@@ -275,6 +298,8 @@ class DataModule(Dataset):
 
 
 class CustomDataModule(LightningDataModule):
+    """Custom Data Module for Lightning"""
+
     def __init__(
             self,
             data_path: str,
@@ -296,21 +321,25 @@ class CustomDataModule(LightningDataModule):
 
     @property
     def classes(self):
-        return set(self.dataset['label'])
+        """Return all classes (labels)"""
+        return sorted(set(self.dataset['label']))
 
     @property
     def num_classes(self):
+        """Return number of classes (labels)"""
         return len(self.classes)
 
     @property
     def vocab_size(self):
+        """Return number of vocab"""
         if not hasattr(self.preprocess, "vocab"):
             corpus = self.dataset['text'].values
             self.preprocess.vocab = self.preprocess.build_vocabulary(corpus, **self.preprocess.vocab_conf)
         return len(self.preprocess.vocab)
 
     def _label_encode(self, labels):
-        distinct = {key: index for index, key in enumerate(sorted(set(labels)))}
+        """Label encoding"""
+        distinct = {key: index for index, key in enumerate(self.classes)}
         tensor_labels = torch.as_tensor([distinct[x] for x in labels], dtype=torch.float)
         return tensor_labels.unsqueeze(1)
 

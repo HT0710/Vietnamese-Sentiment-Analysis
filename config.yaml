@@ -1,31 +1,36 @@
-preprocess:
-  seq_length: 100
-  min_freq: 2
-  max_freq: 0.5
+train:
+  preprocess:
+    seq_length: 100
+    min_freq: 2
+    max_freq: 0.5
 
-data:
-  data_path: datasets/dataset_t1s1a1.csv
-  train_val_test_split: !!python/tuple [0.7,  0.15, 0.15]
-  batch_size: 128
-  num_workers: 0
-  pin_memory: true
+  data:
+    data_path: datasets/dataset_t1s1a1.csv
+    train_val_test_split: !!python/tuple [0.7,  0.15, 0.15]
+    batch_size: 128
+    num_workers: 0
+    pin_memory: true
 
-model:
-  vocab_size: null
-  output_size: 1
-  embedding_size: 128
-  hidden_size: 256
+  model:
+    vocab_size: null
+    output_size: 1
+    embedding_size: 128
+    hidden_size: 256
 
-trainer:
-  learning_rate: 0.0005
-  num_epochs: 20
-  checkpoint: null
+  trainer:
+    learning_rate: 0.0005
+    num_epochs: 20
+    checkpoint: null
 
-callback:
-  checkpoint:
-    enable: true
-    dirpath: null
-    save_top_k: 2
-  earlystopping:
-    enable: true
-    patience: 3
+  callback:
+    checkpoint:
+      enable: true
+      dirpath: null
+      save_top_k: 2
+    earlystopping:
+      enable: true
+      patience: 3
+
+test:
+  config_path: "lightning_logs/version_0/hparams.yaml"
+  model_path: "lightning_logs/version_0/checkpoints/epoch=5-step=1644.ckpt"
