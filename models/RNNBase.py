@@ -24,6 +24,7 @@ config = {
     "num_layers": 2, "dropout": 0.3, "batch_first": True
 }
 
+
 class RNN(RNNBase):
     def __init__(self, vocab_size: int, output_size: int = 1, embedding_size: int = 128, hidden_size: int = 256):
         super().__init__(vocab_size, output_size, embedding_size, hidden_size)

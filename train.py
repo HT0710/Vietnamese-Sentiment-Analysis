@@ -35,7 +35,7 @@ def main(config):
         callbacks=callbacks_list(config['callback'])
     )
 
-    # Training
+    # Training and testing
     trainer.fit(model, dataset)
 
     trainer.test(model, dataset)
@@ -49,10 +49,12 @@ if __name__=="__main__":
     parser.add_argument("-cp", "--checkpoint", type=str, default=None)
     args = parser.parse_args()
 
+    # Load config
     with open('config.yaml', 'r') as file:
         config = yaml.full_load(file)
         config = config['train']
 
+    # Overwrite config if arguments is not None
     if args.epoch is not None:
         config['trainer']['num_epochs'] = args.epoch
     if args.batch is not None:

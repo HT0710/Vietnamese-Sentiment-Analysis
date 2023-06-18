@@ -10,11 +10,9 @@ from rich.prompt import Prompt
 from rich.traceback import install
 install()
 
-
+# General variable
 DEVICE = 'cpu' if torch.cuda.is_available() else 'cpu'
-NUM_WOKER = os.cpu_count() if DEVICE == 'cuda' else 0
-
-result_format = {
+FORMAT = {
     "NEG": "[red]Negative[/]",
     "NEU": "[yellow]Neutral[/]",
     "POS": "[green]Positive[/]",
@@ -34,7 +32,7 @@ def main(args):
     preprocess = data.DataPreprocessing(**config["preprocess"])
 
     # Dataset
-    config['data']['num_workers'] = NUM_WOKER
+    config['data']['num_workers'] = os.cpu_count() if DEVICE == 'cuda' else 0
     dataset = data.CustomDataModule(preprocessing=preprocess, **config['data'])
 
     # Model
@@ -47,16 +45,20 @@ def main(args):
 
     # Prepare data
     prepare = data.VnPreparation(char_limit=7)
+
     print("[bold]Started.[/]   ")
 
     while True:
+        # Get input
         text = args.prompt if args.prompt else Prompt.ask("\n[bold]Enter prompt[/]")
 
+        # Prepare the text
         text = prepare(text)
 
         result = {"score": 0, "value": None}
 
         if text:
+            # Make prediction
             text = preprocess.word2int(corpus=[text], vocab=preprocess.vocab)
 
             tensor = torch.as_tensor(text).to(DEVICE)
@@ -69,8 +71,10 @@ def main(args):
                 "value": "NEU" if (0.4 < output < 0.6) else dataset.classes[round(output)]
             }
 
-        print(f"[bold]Score:[/] {round(result['score'], 2)} -> [bold]{result_format.get(result['value'], 'Unidentified')}[/]")
+        # Print out the result
+        print(f"[bold]Score:[/] {round(result['score'], 2)} -> [bold]{FORMAT.get(result['value'], 'Unidentified')}[/]")
 
+        # Exit if prompt argument is used
         exit() if args.prompt else None
 
 
