@@ -13,9 +13,8 @@
     pip install -r requirements.txt
     ```
 - `config.yaml`: Configuration for training and testing process
-    ```bash
-    > Adjust the config before training or testing <
-    ```
+    > **Adjust the config** before training or testing
+
 - `main.py`: Used for training
     ```bash
     python train.py --epoch 10 --learning_rate 0.001 --batch 128
