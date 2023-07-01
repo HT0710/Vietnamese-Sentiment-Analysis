@@ -5,7 +5,7 @@ train:
     max_freq: 0.5
 
   data:
-    data_path: datasets/dataset_t1s1a1.csv
+    data_path: datasets/dataset_ft_encoded_l200.csv
     train_val_test_split: !!python/tuple [0.7,  0.15, 0.15]
     batch_size: 128
     num_workers: 0

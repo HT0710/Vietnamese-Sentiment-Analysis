@@ -59,8 +59,12 @@ class RecurrentWay(nn.Module):
 class CRNNParallel(LitModel):
     """CNN and RNN-based Parallel"""
 
-    # both_way_out_shape*(int(seq_length/(2**num_conv_maxpool_layer))+1)
-    flatten_shape = 256*(int(300/(2**3))+1)
+    # Parameter
+    seq_length = 200
+    num_conv_maxpool = 3
+    both_way_out_shape = 256
+
+    flatten_shape = both_way_out_shape*(int(seq_length/(2**num_conv_maxpool))+1)
 
     def __init__(
             self,
