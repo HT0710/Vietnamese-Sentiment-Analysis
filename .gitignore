@@ -1,0 +1,10 @@
+
+*.pyc
+*.pth
+TODO.md
+datasets
+dataset
+lightning_logs
+eval.py
+*.ipynb
+models/vncorenlp
