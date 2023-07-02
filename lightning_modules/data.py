@@ -227,9 +227,35 @@ class VnPreprocesser(DataPreprocesser):
 class CustomEncoder():
     """Custom Encoder"""
 
+    def __init__(self):
+        raise EnvironmentError(
+            "CustomEncoder is designed to be instantiated, "
+            "use the `CustomEncoder.load(...)` method instead."
+        )
+
+    @classmethod
+    def load(
+            self,
+            model_name: str = None,
+            seq_length: int = None,
+            min_freq: Union[int, float] = 1,
+            max_freq: Union[int, float] = 1.,
+        ):
+        r"""
+        Return: `BasicEncoder` if model_name is None else `TransformerEncoder`
+        """
+        if not model_name:
+            return BasicEncoder(seq_length, min_freq, max_freq)
+        else:
+            return TransformerEncoder(model_name, max_length=seq_length)
+
+
+class BasicEncoder():
+    """Custom Encoder"""
+
     def __init__(
             self,
-            seq_length: int = 128,
+            seq_length: int = None,
             min_freq: Union[int, float] = 1,
             max_freq: Union[int, float] = 1.,
         ):
@@ -269,37 +295,50 @@ class CustomEncoder():
         counter = Counter(tokenized)
         token_list = ['<pad>', '<unk>']
         token_list.extend([token for token in counter if (min_freq <= counter[token] <= max_freq)])
-        self.vocab = {token: idx for idx, token in enumerate(token_list)}
-        return self.vocab
+        return {token: idx for idx, token in enumerate(token_list)}
 
     def word2int(self, corpus: List[str], vocab: Dict[str, int]):
         """Convert words to integer base on vocab"""
         convert = lambda token: vocab[token] if token in vocab else self.vocab['<unk>']
         return [[convert(token) for token in seq.split()] for seq in corpus]
 
-    def truncate_sequences(self, corpus: List[str], seq_length: int=128):
+    def truncate_sequences(self, corpus: List[str], seq_length: int):
         """Truncate the sequences"""
+        if not seq_length:
+            seq_length = max(corpus, key=lambda x: len(x.split(" ")))
         return truncate(corpus, seq_length)
 
     def pad_sequences(self, corpus: List[str]):
-        """Padding all sequences with the length equal to the longest sequence"""
+        """
+        Padding to all sequences with the length equal to the longest sequence.
+
+        Note: Padding exercute after truncated.
+        """
         to_tensor = [torch.as_tensor(seq) for seq in corpus]
         return pad_sequence(to_tensor, batch_first=True)
 
 
 class TransformerEncoder():
-    """Transormer encoder for Hugging face"""
+    """Transormer encoder for Hugging face model"""
 
     def __init__(
             self,
             model_name: str,
-            padding: bool=True,
-            truncation: bool=True,
-            max_length: int=100,
+            padding: bool = True,
+            truncation: bool = True,
+            max_length: int = None,
         ):
-        self.name = model_name
+        r"""
+        Auto load the given model
+
+        Params:
+            - model_name: name of the pretrained model from hugging face
+            - max_length: limit amount of worlds
+            - padding: padding to the sequence after truncation or if it is shorter than max_length
+            - truncation: truncate the sequence if it exceeds the max_length
+        """
+        self.model_name = model_name
         self.model = AutoTokenizer.from_pretrained(model_name)
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.config = {
             "padding": padding,
             "truncation": truncation,
@@ -310,30 +349,16 @@ class TransformerEncoder():
 
     @property
     def vocab(self):
+        """Return vocab"""
         return self.model.get_vocab()
 
     def __call__(self, corpus: List[str]):
         return self.encode(corpus)
 
     def encode(self, corpus: List[str]):
+        """Encode the corpus"""
         out = self.model(corpus, **self.config)
         return out.input_ids
-
-
-class DataModule(Dataset):
-    """Pytorch Data Module"""
-
-    def __init__(self, corpus, labels):
-        self.corpus = corpus
-        self.labels = labels
-
-    def __len__(self):
-        return len(self.corpus)
-
-    def __getitem__(self, idx):
-        text = self.corpus[idx]
-        label = self.labels[idx]
-        return text, label
 
 
 class CustomDataModule(LightningDataModule):
@@ -382,7 +407,7 @@ class CustomDataModule(LightningDataModule):
         """Corpus encoding"""
         print("[bold]Prepare data:[/] Encode corpus...", end='\r')
         if not self.encoder:
-            tokens = [[int(token) for token in seq.split(",")]  for seq in corpus]
+            tokens = [[int(token) for token in seq.split(",")] for seq in corpus]
             return torch.as_tensor(tokens, dtype=torch.long)
         else:
             return self.encoder(corpus)
@@ -416,3 +441,19 @@ class CustomDataModule(LightningDataModule):
 
     def test_dataloader(self):
         return DataLoader(dataset=self.data_test, **self.dl_conf, shuffle=False)
+
+
+class DataModule(Dataset):
+    """Pytorch Data Module"""
+
+    def __init__(self, corpus, labels):
+        self.corpus = corpus
+        self.labels = labels
+
+    def __len__(self):
+        return len(self.corpus)
+
+    def __getitem__(self, idx):
+        text = self.corpus[idx]
+        label = self.labels[idx]
+        return text, label

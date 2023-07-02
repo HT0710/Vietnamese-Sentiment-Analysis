@@ -10,8 +10,10 @@ from rich.prompt import Prompt
 from rich.traceback import install
 install()
 
+
 # General variable
-DEVICE = 'cpu' if torch.cuda.is_available() else 'cpu'
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+NUM_WOKER = int(os.cpu_count()*0.8) if torch.cuda.is_available() else 0
 FORMAT = {
     "NEG": "[red]Negative[/]",
     "NEU": "[yellow]Neutral[/]",
@@ -23,28 +25,22 @@ def main(args):
     print("Starting...", end="\r")
 
     # Load config
-    model_path = args.config['test']['model_path']
-    config_path = args.config['test']['config_path']
-    with open(config_path, 'r') as file:
+    with open(args.config['test']['config_path'], 'r') as file:
         config = yaml.full_load(file)
 
-    # Preprocessing
-    preprocess = data.DataPreprocessing(**config["preprocess"])
+    prepare = data.VnPreprocesser(char_limit=7)
 
-    # Dataset
-    config['data']['num_workers'] = os.cpu_count() if DEVICE == 'cuda' else 0
-    dataset = data.CustomDataModule(preprocessing=preprocess, **config['data'])
+    encoder = data.CustomEncoder.load("vinai/phobert-base-v2")
 
-    # Model
+    config['data']['num_workers'] = NUM_WOKER
+    dataset = data.CustomDataModule(encoder=encoder, **config['data'])
+
     config['model']['vocab_size'] = dataset.vocab_size
-    model = models.BiGRU(**config['model'])
+    model = models.BERT(**config['model'])
 
-    model.load(model_path)
+    model.load(args.config['test']['model_path'])
     model.to(DEVICE)
     model.eval()
-
-    # Prepare data
-    prepare = data.VnPreparation(char_limit=7)
 
     print("[bold]Started.[/]   ")
 
@@ -59,12 +55,10 @@ def main(args):
 
         if text:
             # Make prediction
-            text = preprocess.word2int(corpus=[text], vocab=preprocess.vocab)
-
-            tensor = torch.as_tensor(text).to(DEVICE)
+            text = encoder(text).to(DEVICE)
 
             with torch.inference_mode():
-                output = model(tensor).item()
+                output = model(text).item()
 
             result = {
                 "score": output,

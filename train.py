@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
 import os, yaml
 
-from transformers import AutoTokenizer
 from lightning.pytorch import Trainer, seed_everything
 from lightning_modules import callbacks_list
 import lightning_modules.data as data
@@ -18,15 +17,16 @@ seed_everything(seed=42, workers=True)
 
 def main(config):
     # Encoder
-    encoder = AutoTokenizer.from_pretrained("vinai/phobert-base-v2")
+    # encoder = data.CustomEncoder.load(**config['encoder'])
+    encoder = None
 
     # Dataset
-    config['data']['num_workers'] = os.cpu_count() if torch.cuda.is_available() else 0
-    dataset = data.CustomDataModule(encoder=None, **config['data'])
+    config['data']['num_workers'] = int(os.cpu_count()*0.8) if torch.cuda.is_available() else 0
+    dataset = data.CustomDataModule(encoder=encoder, **config['data'])
 
     # Model
-    config['model']['vocab_size'] = len(encoder.get_vocab())
-    model = models.BERT(**config['model'])
+    config['model']['vocab_size'] = dataset.vocab_size
+    model = models.BiGRU(**config['model'])
     model.save_hparams(config)
     model.load(config['trainer']['checkpoint'])
 

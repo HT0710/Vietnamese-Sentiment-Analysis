@@ -56,7 +56,7 @@ class RecurrentWay(nn.Module):
         return out
 
 
-class CRNNParallel(LitModel):
+class CRP(LitModel):
     """CNN and RNN-based Parallel"""
 
     # Parameter
