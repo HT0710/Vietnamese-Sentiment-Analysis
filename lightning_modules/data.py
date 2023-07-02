@@ -406,6 +406,8 @@ class CustomDataModule(LightningDataModule):
 
     def _load_data(self, path: str, limit: Union[int, float]=None):
         dataset = pd.read_csv(path).dropna()
+        if not limit:
+            return dataset
         if limit > len(dataset):
             raise ValueError(
                 "The dataset limit value must be smaller than the dataset length "
