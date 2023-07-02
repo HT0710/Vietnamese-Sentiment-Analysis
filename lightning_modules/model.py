@@ -18,7 +18,7 @@ class LitModel(LightningModule):
         return F.binary_cross_entropy(y_hat, y)
 
     def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=self.hparams.trainer['learning_rate'])
+        return optim.AdamW(self.parameters(), lr=self.hparams.trainer['learning_rate'])
 
     def training_step(self, batch, batch_idx):
         X, y = batch

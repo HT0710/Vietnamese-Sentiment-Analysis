@@ -4,7 +4,10 @@ torchmetrics
 lightning
 tensorboard==2.11.0
 pandas
+tqdm
 nltk
 pyyaml
 underthesea
 pyvi
+transformers
+py_vncorenlp

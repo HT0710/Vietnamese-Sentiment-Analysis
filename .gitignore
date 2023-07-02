@@ -6,3 +6,4 @@ TODO.md
 lightning_logs
 eval.py
 *.ipynb
+models/vncorenlp

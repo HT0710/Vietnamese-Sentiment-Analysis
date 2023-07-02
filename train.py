@@ -16,16 +16,17 @@ seed_everything(seed=42, workers=True)
 
 
 def main(config):
-    # Preprocessing
-    preprocesser = data.DataPreprocessing(**config["preprocess"])
+    # Encoder
+    # encoder = data.CustomEncoder.load(**config['encoder'])
+    encoder = None
 
     # Dataset
-    config['data']['num_workers'] = os.cpu_count() if torch.cuda.is_available() else 0
-    dataset = data.CustomDataModule(preprocessing=preprocesser, **config['data'])
+    config['data']['num_workers'] = int(os.cpu_count()*0.8) if torch.cuda.is_available() else 0
+    dataset = data.CustomDataModule(encoder=encoder, **config['data'])
 
     # Model
     config['model']['vocab_size'] = dataset.vocab_size
-    model = models.BiGRU(**config['model'])
+    model = models.BERT(**config['model'])
     model.save_hparams(config)
     model.load(config['trainer']['checkpoint'])
 
