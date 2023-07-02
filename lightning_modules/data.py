@@ -368,13 +368,14 @@ class CustomDataModule(LightningDataModule):
             self,
             data_path: str,
             encoder: Any,
+            data_limit: Union[int, float] = None,
             train_val_test_split: Tuple[float, float, float] = (0.75, 0.1, 0.15),
             batch_size: int = 32,
             num_workers: int = 0,
             pin_memory: bool = True,
         ):
         super().__init__()
-        self.dataset = pd.read_csv(data_path).dropna()
+        self.dataset = self._load_data(data_path, data_limit)
         self.split_size = train_val_test_split
         self.encoder = encoder
         self.dl_conf = {
@@ -402,6 +403,17 @@ class CustomDataModule(LightningDataModule):
             corpus = self.dataset['text'].to_list()
             self.encoder.vocab = self.encoder.build_vocabulary(corpus, **self.encoder.vocab_conf)
         return len(self.encoder.vocab)
+
+    def _load_data(self, path: str, limit: Union[int, float]=None):
+        dataset = pd.read_csv(path).dropna()
+        if limit > len(dataset):
+            raise ValueError(
+                "The dataset limit value must be smaller than the dataset length "
+                "or between 0 and 1 if it is a float."
+            )
+        if 0 < limit < 1:
+            limit = int(len(dataset)*limit)
+        return dataset[:limit]
 
     def encode_corpus(self, corpus: List[str]):
         """Corpus encoding"""

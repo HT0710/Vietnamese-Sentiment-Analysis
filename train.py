@@ -26,7 +26,7 @@ def main(config):
 
     # Model
     config['model']['vocab_size'] = dataset.vocab_size
-    model = models.BiGRU(**config['model'])
+    model = models.BERT(**config['model'])
     model.save_hparams(config)
     model.load(config['trainer']['checkpoint'])
 

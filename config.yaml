@@ -7,6 +7,7 @@ train:
 
   data:
     data_path: datasets/dataset_ft_encoded_l100.csv
+    data_limit: null
     train_val_test_split: !!python/tuple [0.7,  0.15, 0.15]
     batch_size: 128
     num_workers: 0
