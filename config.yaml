@@ -1,10 +1,10 @@
 train:
   data:
     data_path: datasets/dataset_ft.csv
-    data_limit: 0.01
+    data_limit: null
     batch_size: 128
     tokenizer: imthanhlv/gpt2news
-    max_length: 20
+    max_length: 100
     min_freq: 2
     max_freq: 0.5
     train_val_test_split: !!python/tuple [0.7,  0.15, 0.15]
@@ -18,7 +18,7 @@ train:
     hidden_size: 512
 
   trainer:
-    learning_rate: 1e-6
+    learning_rate: 1.e-6
     num_epochs: 50
     checkpoint: null
 
@@ -33,5 +33,5 @@ train:
       patience: 3
 
 test:
-  model_path: /home/ht0710/Documents/GitHub/Sentiment-Analysis/lightning_logs/version_7/checkpoints/last.ckpt
-  config_path: /home/ht0710/Documents/GitHub/Sentiment-Analysis/lightning_logs/version_7/hparams.yaml
+  model_path: 
+  config_path: 
