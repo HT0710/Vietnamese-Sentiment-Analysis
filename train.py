@@ -9,7 +9,7 @@ from modules.callback import callbacks_list
 from modules.data import CustomDataModule
 from models import (
     RNN, LSTM, GRU, 
-    BiRNN, BiGRU, BiLSTM, 
+    BiRNN, BiLSTM,  BiGRU,
     BERT, GPT2
 )
 
@@ -29,7 +29,7 @@ def main(config):
     dataset = CustomDataModule(**config['data'])
 
     # Model
-    model = GPT2(**config['model'])
+    model = BiGRU(vocab_size=dataset.vocab_size, **config['model'])
 
     # Load checkpoint if configured
     model.load(config['trainer']['checkpoint'])

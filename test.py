@@ -8,7 +8,7 @@ import torch
 from modules.data import VnPreprocesser, CustomDataModule
 from models import (
     RNN, LSTM, GRU, 
-    BiRNN, BiGRU, BiLSTM, 
+    BiRNN, BiLSTM, BiGRU, 
     BERT, GPT2
 )
 

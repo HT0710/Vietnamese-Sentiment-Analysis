@@ -27,32 +27,32 @@ config = {
 
 
 class RNN(RNNBase):
-    def __init__(self, vocab_size: int, output_size: int = 1, embedding_size: int = 128, hidden_size: int = 256):
+    def __init__(self, vocab_size: int, output_size: int, embedding_size: int=128, hidden_size: int=256, **kwagrs):
         super().__init__(vocab_size, output_size, embedding_size, hidden_size)
         self.model = nn.RNN(embedding_size, hidden_size, bidirectional=False, **config)
 
 class LSTM(RNNBase):
-    def __init__(self, vocab_size: int, output_size: int = 1, embedding_size: int = 128, hidden_size: int = 256):
+    def __init__(self, vocab_size: int, output_size: int, embedding_size: int=128, hidden_size: int=256, **kwagrs):
         super().__init__(vocab_size, output_size, embedding_size, hidden_size)
         self.model = nn.LSTM(embedding_size, hidden_size, bidirectional=False, **config)
 
 class GRU(RNNBase):
-    def __init__(self, vocab_size: int, output_size: int = 1, embedding_size: int = 128, hidden_size: int = 256):
+    def __init__(self, vocab_size: int, output_size: int, embedding_size: int=128, hidden_size: int=256, **kwagrs):
         super().__init__(vocab_size, output_size, embedding_size, hidden_size)
         self.model = nn.GRU(embedding_size, hidden_size, bidirectional=False, **config)
 
 
 class BiRNN(RNNBase):
-    def __init__(self, vocab_size: int, output_size: int = 1, embedding_size: int = 128, hidden_size: int = 256):
+    def __init__(self, vocab_size: int, output_size: int, embedding_size: int=128, hidden_size: int=256, **kwagrs):
         super().__init__(vocab_size, output_size, embedding_size, hidden_size)
         self.model = nn.RNN(embedding_size, int(hidden_size/2), bidirectional=True, **config)
 
 class BiLSTM(RNNBase):
-    def __init__(self, vocab_size: int, output_size: int = 1, embedding_size: int = 128, hidden_size: int = 256):
+    def __init__(self, vocab_size: int, output_size: int, embedding_size: int=128, hidden_size: int=256, **kwagrs):
         super().__init__(vocab_size, output_size, embedding_size, hidden_size)
         self.model = nn.LSTM(embedding_size, int(hidden_size/2), bidirectional=True, **config)
 
 class BiGRU(RNNBase):
-    def __init__(self, vocab_size: int, output_size: int = 1, embedding_size: int = 128, hidden_size: int = 256):
+    def __init__(self, vocab_size: int, output_size: int, embedding_size: int=128, hidden_size: int=256, **kwagrs):
         super().__init__(vocab_size, output_size, embedding_size, hidden_size)
         self.model = nn.GRU(embedding_size, int(hidden_size/2), bidirectional=True, **config)

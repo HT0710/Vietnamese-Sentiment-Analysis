@@ -73,6 +73,7 @@ class CRP(LitModel):
             output_size: int = 1,
             embedding_size: int = 400,
             hidden_size: int = 128,
+            **kwargs
         ):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, embedding_size)
