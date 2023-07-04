@@ -1,45 +1,54 @@
-from argparse import ArgumentParser
 import os, yaml
+from argparse import ArgumentParser
+from rich import traceback, print
+traceback.install()
 
-from lightning.pytorch import Trainer, seed_everything
-from lightning_modules import callbacks_list
-import lightning_modules.data as data
-import models
 import torch
+from lightning.pytorch import Trainer, seed_everything
+from modules.callback import callbacks_list
+from modules.data import CustomDataModule
+from models import (
+    RNN, LSTM, GRU, 
+    BiRNN, BiGRU, BiLSTM, 
+    BERT, GPT2
+)
 
-from rich.traceback import install
-install()
 
 
 # Set seed
 seed_everything(seed=42, workers=True)
+# Handle forked process (set to `false` if process is stuck)
+os.environ['TOKENIZERS_PARALLELISM'] = 'true'
 
 
 def main(config):
-    # Encoder
-    # encoder = data.CustomEncoder.load(**config['encoder'])
-    encoder = None
+    # Set number of worker (CPU will be used | Default: 80%)
+    config['data']['num_workers'] = int(os.cpu_count()*0.8) if torch.cuda.is_available() else 0
 
     # Dataset
-    config['data']['num_workers'] = int(os.cpu_count()*0.8) if torch.cuda.is_available() else 0
-    dataset = data.CustomDataModule(encoder=encoder, **config['data'])
+    dataset = CustomDataModule(**config['data'])
 
     # Model
-    config['model']['vocab_size'] = dataset.vocab_size
-    model = models.BERT(**config['model'])
-    model.save_hparams(config)
+    model = GPT2(**config['model'])
+
+    # Load checkpoint if configured
     model.load(config['trainer']['checkpoint'])
 
-    # Trainer
+    # Save hyperparameters
+    model.save_hparams(config)
+
+    # Define trainer
     trainer = Trainer(
         max_epochs=config['trainer']['num_epochs'],
         callbacks=callbacks_list(config['callback'])
     )
 
-    # Training and testing
+    # Training
     trainer.fit(model, dataset)
 
+    # Testing
     trainer.test(model, dataset)
+
 
 
 if __name__=="__main__":
@@ -52,8 +61,7 @@ if __name__=="__main__":
 
     # Load config
     with open('config.yaml', 'r') as file:
-        config = yaml.full_load(file)
-        config = config['train']
+        config = yaml.full_load(file)['train']
 
     # Overwrite config if arguments is not None
     if args.epoch is not None:

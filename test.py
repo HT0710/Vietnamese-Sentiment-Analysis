@@ -1,14 +1,17 @@
-from argparse import ArgumentParser
 import os, yaml
-
-import lightning_modules.data as data
-import models
-import torch
-
-from rich import print
+from argparse import ArgumentParser
+from rich import traceback, print
 from rich.prompt import Prompt
-from rich.traceback import install
-install()
+traceback.install()
+
+import torch
+from modules.data import VnPreprocesser, CustomDataModule
+from models import (
+    RNN, LSTM, GRU, 
+    BiRNN, BiGRU, BiLSTM, 
+    BERT, GPT2
+)
+
 
 
 # General variable
@@ -25,18 +28,15 @@ def main(args):
     print("Starting...", end="\r")
 
     # Load config
-    with open(args.config['test']['config_path'], 'r') as file:
+    with open(args.config['test']['config_path'], 'r', encoding='utf-8') as file:
         config = yaml.full_load(file)
 
-    prepare = data.VnPreprocesser(char_limit=7)
-
-    encoder = data.CustomEncoder.load("vinai/phobert-base-v2")
+    prepare = VnPreprocesser(char_limit=7)
 
     config['data']['num_workers'] = NUM_WOKER
-    dataset = data.CustomDataModule(encoder=encoder, **config['data'])
+    dataset = CustomDataModule(**config['data'])
 
-    config['model']['vocab_size'] = dataset.vocab_size
-    model = models.BERT(**config['model'])
+    model = GPT2(**config['model'])
 
     model.load(args.config['test']['model_path'])
     model.to(DEVICE)
@@ -55,7 +55,7 @@ def main(args):
 
         if text:
             # Make prediction
-            text = encoder(text).to(DEVICE)
+            text = dataset.encoder(text).to(DEVICE)
 
             with torch.inference_mode():
                 output = model(text).item()

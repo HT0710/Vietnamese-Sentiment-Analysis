@@ -3,6 +3,7 @@ import lightning.pytorch.callbacks as cb
 from rich import print
 
 
+
 class PrintTrainResult(cb.Callback):
     def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         epoch = trainer.current_epoch
@@ -34,6 +35,7 @@ def callbacks_list(config):
             save_weights_only=True,
             dirpath=config['checkpoint']['dirpath'],
             save_top_k=config['checkpoint']['save_top_k'],
+            save_last=config['checkpoint']['save_last']
         )
     ) if config['checkpoint']['enable'] else None
 

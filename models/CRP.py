@@ -1,6 +1,7 @@
-from lightning_modules.model import LitModel
+from modules.lit_model import LitModel
 import torch.nn as nn
 import torch
+
 
 
 class ConvolutionWay(nn.Module):
