@@ -1,5 +1,6 @@
-from lightning_modules import LitModel
+from modules.lit_model import LitModel
 import torch.nn as nn
+
 
 
 class RNNBase(LitModel):

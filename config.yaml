@@ -1,27 +1,25 @@
 train:
-  encoder:
-    model_name: vinai/phobert-base-v2
-    seq_length: 100
+  data:
+    data_path: datasets/dataset_ft.csv
+    data_limit: 0.01
+    batch_size: 128
+    tokenizer: imthanhlv/gpt2news
+    max_length: 20
     min_freq: 2
     max_freq: 0.5
-
-  data:
-    data_path: datasets/dataset_ft_encoded_l100.csv
-    data_limit: null
     train_val_test_split: !!python/tuple [0.7,  0.15, 0.15]
-    batch_size: 128
     num_workers: 0
     pin_memory: true
 
   model:
-    vocab_size: null
+    model_name: imthanhlv/gpt2news
     output_size: 1
-    embedding_size: 128
-    hidden_size: 256
+    embedding_size: 256
+    hidden_size: 512
 
   trainer:
-    learning_rate: 0.0005
-    num_epochs: 20
+    learning_rate: 1e-6
+    num_epochs: 50
     checkpoint: null
 
   callback:
@@ -29,11 +27,11 @@ train:
       enable: true
       dirpath: null
       save_top_k: 2
+      save_last: true
     earlystopping:
       enable: true
       patience: 3
 
-
 test:
-  config_path: 
-  model_path: 
+  model_path: /home/ht0710/Documents/GitHub/Sentiment-Analysis/lightning_logs/version_7/checkpoints/last.ckpt
+  config_path: /home/ht0710/Documents/GitHub/Sentiment-Analysis/lightning_logs/version_7/hparams.yaml
