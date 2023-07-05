@@ -30,7 +30,7 @@ train:
       save_last: true
     earlystopping:
       enable: true
-      patience: 3
+      patience: 5
 
 test:
   model_path: 
