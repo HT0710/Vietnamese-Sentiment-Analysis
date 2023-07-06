@@ -28,7 +28,7 @@ class LitModel(LightningModule):
         f1 = f1_score(y_hat, y, task='binary')
         self.log_dict(
             {"train/loss": loss, "train/accuracy": acc, "train/f1_score": f1},
-            on_step=True, on_epoch=False
+            on_step=False, on_epoch=True
         )
         return loss
 
