@@ -186,11 +186,14 @@ class VnPreprocesser(DataPreprocesser):
         return set(stopwords)
 
     def _get_tokenizer(self):
-        vncore_path = os.getcwd() + '/models/vncorenlp'
+        original = os.getcwd()
+        vncore_path = f"{original}/models/vncorenlp"
         if not os.path.exists(vncore_path):
             os.mkdir(vncore_path)
             vncore.download_model(save_dir=vncore_path)
-        return vncore.VnCoreNLP(annotators=["wseg"], save_dir=vncore_path)
+        tokenizer = vncore.VnCoreNLP(annotators=["wseg"], save_dir=vncore_path)
+        os.chdir(original)
+        return tokenizer
 
     def remove_non_ascii(self, text: str):
         return re.sub(r'ˋ', '', text)

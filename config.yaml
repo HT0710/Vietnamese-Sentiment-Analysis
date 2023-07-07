@@ -33,5 +33,4 @@ train:
       patience: 5
 
 test:
-  model_path: 
-  config_path: 
+  checkpoint: lightning_logs/BERT/checkpoints/best.ckpt

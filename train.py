@@ -1,7 +1,10 @@
 import os, yaml
 from argparse import ArgumentParser
-from rich import traceback, print
+from rich import traceback
 traceback.install()
+
+from transformers import logging
+logging.set_verbosity_error()
 
 import torch
 from lightning.pytorch import Trainer, seed_everything

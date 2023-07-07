@@ -31,15 +31,20 @@ class BasicEncoder():
     def auto(self, corpus: List[str]):
         """Auto pass through all step"""
         print("[bold]Preprocessing:[/] Building vocabulary...", end='\r')
-        vocab = self.build_vocabulary(corpus, **self.vocab_conf)
+        out = self.build_vocabulary(corpus, **self.vocab_conf)
         print("[bold]Preprocessing:[/] Converting word2int...", end='\r')
-        encoded = self.word2int(corpus, vocab)
+        out = self.word2int(corpus, out)
         print("[bold]Preprocessing:[/] Truncating...         ", end='\r')
-        truncated = self.truncate_sequences(encoded, max_length=self.max_length)
+        out = self.truncate_sequences(out, max_length=self.max_length)
         print("[bold]Preprocessing:[/] Padding...            ", end='\r')
-        padded = self.pad_sequences(truncated)
+        out = self.pad_sequences(out)
         print("[bold]Preprocessing:[/] Done      ")
-        return padded
+        return out
+
+    def encode(self, corpus: List[str]):
+        if not hasattr(self, "vocab"):
+            raise AttributeError("Vocab not found.")
+        return torch.as_tensor(self.word2int(corpus, self.vocab))
 
     def build_vocabulary(self, corpus: List[str], min_freq: Union[int, float]=1, max_freq: Union[int, float]=1.):
         """Build vocabulary
