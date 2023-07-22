@@ -35,7 +35,7 @@ def main(args, config):
     config['data']['num_workers'] = NUM_WOKER
     dataset = CustomDataModule(**config['data'])
 
-    model = MODEL[config['trainer']['model_name']](vocab_size=dataset.vocab_size, **config['model'])
+    model = MODEL[config['model']['model_name']](vocab_size=dataset.vocab_size, **config['model'])
 
     model.load(args.config['checkpoint'])
     model.eval().to(DEVICE)

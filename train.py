@@ -23,16 +23,22 @@ seed_everything(seed=42, workers=True)
 # Handle forked process (set to `false` if process is stuck)
 os.environ['TOKENIZERS_PARALLELISM'] = 'true'
 
+# Set number of worker (CPU will be used | Default: 80%)
+NUM_WOKER = int(os.cpu_count()*0.8) if torch.cuda.is_available() else 0
+MODEL = {
+    "RNN": RNN, "LSTM": LSTM, "GRU": GRU,
+    "BiRNN": BiRNN, "BiLSTM": BiLSTM, "BiGRU": BiGRU,
+    "BERT": BERT, "GPT2": GPT2
+}
 
 def main(config):
-    # Set number of worker (CPU will be used | Default: 80%)
-    config['data']['num_workers'] = int(os.cpu_count()*0.8) if torch.cuda.is_available() else 0
+    config['data']['num_workers'] = NUM_WOKER
 
     # Dataset
     dataset = CustomDataModule(**config['data'])
 
     # Model
-    model = BiGRU(vocab_size=dataset.vocab_size, **config['model'])
+    model = MODEL[config['model']['model_name']](vocab_size=dataset.vocab_size, **config['model'])
 
     # Load checkpoint if configured
     model.load(config['trainer']['checkpoint'])
@@ -56,6 +62,7 @@ def main(config):
 
 if __name__=="__main__":
     parser = ArgumentParser()
+    parser.add_argument("-m", "--model", type=str, default=None)
     parser.add_argument("-e", "--epoch", type=int, default=None)
     parser.add_argument("-b", "--batch", type=int, default=None)
     parser.add_argument("-lr", "--learning_rate", type=float, default=None)
@@ -67,6 +74,8 @@ if __name__=="__main__":
         config = yaml.full_load(file)['train']
 
     # Overwrite config if arguments is not None
+    if args.model is not None:
+        config['model']['model_name'] = args.model
     if args.epoch is not None:
         config['trainer']['num_epochs'] = args.epoch
     if args.batch is not None:

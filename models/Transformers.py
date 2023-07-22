@@ -41,5 +41,5 @@ class GPT2(Classification):
     def forward(self, x):
         out = self.gpt2(x).last_hidden_state
         out = super().forward(out).squeeze(2)
-        out= out.max(dim=1)[0].unsqueeze(1)
+        out = out.max(dim=1)[0].unsqueeze(1)
         return out
