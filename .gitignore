@@ -3,7 +3,7 @@
 *.pth
 *.csv
 TODO.md
-lightning_logs
+lightning_logs/*/
 eval.py
 *.ipynb
 models/vncorenlp
